@@ -2,7 +2,7 @@ import { Button, Card, Container, Group, Stack, Text, Title } from "@mantine/cor
 import { useState } from "react";
 import viteLogo from "/vite.svg";
 import reactLogo from "../assets/react.svg";
-import TestSocket from "../ws/TestSocket";
+import TestSocket from "../utils/ws/TestSocket";
 import "./App.css";
 
 function App() {
