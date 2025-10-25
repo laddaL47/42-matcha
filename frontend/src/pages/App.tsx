@@ -1,8 +1,8 @@
 import { Button, Card, Container, Group, Stack, Text, Title } from "@mantine/core";
 import { useState } from "react";
 import viteLogo from "/vite.svg";
-import reactLogo from "./assets/react.svg";
-import TestSocket from "./ws/TestSocket";
+import reactLogo from "../assets/react.svg";
+import TestSocket from "../ws/TestSocket";
 import "./App.css";
 
 function App() {

@@ -6,6 +6,7 @@ export default function TestSocket() {
   const [status, setStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
   const [hello, setHello] = useState<string | null>(null);
   const [pong, setPong] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -21,6 +22,7 @@ export default function TestSocket() {
     socket.on("connect_error", (err) => {
       console.error("connect_error:", err);
       setStatus("error");
+      setErrorMessage(err.message || "Connection failed");
     });
 
     socket.on("hello", (payload: unknown) => {
@@ -53,6 +55,14 @@ export default function TestSocket() {
           <Text fw={500}>Pong:</Text>
           <Code>{pong ? "received" : "-"}</Code>
         </Group>
+        {errorMessage && (
+          <Group>
+            <Text fw={500} c="red">
+              Error:
+            </Text>
+            <Code c="red">{errorMessage}</Code>
+          </Group>
+        )}
       </Stack>
     </Card>
   );
