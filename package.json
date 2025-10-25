@@ -1,0 +1,24 @@
+{
+  "name": "42-matcha",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pettei47/42-matcha.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/pettei47/42-matcha/issues"
+  },
+  "homepage": "https://github.com/pettei47/42-matcha#readme",
+  "devDependencies": {
+    "lefthook": "^2.0.1"
+  }
+}
