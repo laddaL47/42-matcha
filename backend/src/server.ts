@@ -32,6 +32,9 @@ app.use(
       return cb(new Error('CORS: origin not allowed'));
     },
     credentials: true,
+    methods: ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Accept', 'X-CSRF-Token'],
+    exposedHeaders: ['X-CSRF-Token'],
   }),
 );
 // Security middlewares
@@ -62,6 +65,56 @@ export function setAuthCookie(
     maxAge: maxAgeMs,
   });
 }
+
+// CSRF helpers (double-submit token)
+function generateCsrfToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+function setCsrfCookie(res: any, token: string) {
+  const isProd = process.env.NODE_ENV === 'production';
+  res.cookie('csrf_token', token, {
+    httpOnly: false, // must be readable by JS to echo into header
+    secure: isProd,
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+  });
+  res.setHeader('X-CSRF-Token', token);
+}
+
+// Issue CSRF token cookie on safe requests when user is logged-in
+function ensureCsrfToken(req: any, res: any, next: any) {
+  const method = String(req.method || 'GET').toUpperCase();
+  const isSafe = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+  // Only relevant when session cookie is present (protects authenticated actions)
+  const hasSession = Boolean(req.cookies?.access_token);
+  if (isSafe && hasSession) {
+    let token = req.cookies?.csrf_token;
+    if (!token) token = generateCsrfToken();
+    setCsrfCookie(res, token);
+  }
+  return next();
+}
+
+// Require CSRF for mutating methods if session cookie exists
+function requireCsrf(req: any, res: any, next: any) {
+  const method = String(req.method || 'GET').toUpperCase();
+  const isMutating = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+  const hasSession = Boolean(req.cookies?.access_token);
+  if (!isMutating || !hasSession) return next();
+
+  const cookieTok = req.cookies?.csrf_token;
+  const headerTok = req.get('x-csrf-token') || req.get('X-CSRF-Token');
+  if (!cookieTok || !headerTok || cookieTok !== headerTok) {
+    return res.status(403).json({ error: 'Invalid CSRF token' });
+  }
+  return next();
+}
+
+// Attach CSRF middlewares
+app.use(ensureCsrfToken);
+app.use(requireCsrf);
 
 // ---- Routes ----
 const api = express.Router();
