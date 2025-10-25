@@ -2,6 +2,7 @@ import { Button, Card, Container, Group, Stack, Text, Title } from "@mantine/cor
 import { useState } from "react";
 import viteLogo from "/vite.svg";
 import reactLogo from "./assets/react.svg";
+import TestSocket from "./ws/TestSocket";
 import "./App.css";
 
 function App() {
@@ -35,6 +36,9 @@ function App() {
         <Text size="sm" c="dimmed">
           Click on the Vite and React logos to learn more
         </Text>
+
+        {/* WS connectivity check */}
+        <TestSocket />
       </Stack>
     </Container>
   );
