@@ -10,6 +10,7 @@ import bcrypt from 'bcryptjs';
 import { query } from './db/pool.js';
 import { sendMail } from './email/mailer.js';
 import crypto from 'crypto';
+import { AppError, badRequest, conflict, forbidden, internal, unauthorized } from './errors.js';
 
 const app = express();
 
@@ -29,7 +30,7 @@ app.use(
   origin: (origin: string | undefined, cb: (err: Error | null, ok?: boolean) => void) => {
       // allow no-origin (curl, same-origin) or listed origins
       if (!origin || ORIGINS.includes(origin)) return cb(null, true);
-      return cb(new Error('CORS: origin not allowed'));
+      return cb(new AppError('CORS_ORIGIN_NOT_ALLOWED', 403, 'CORS: origin not allowed'));
     },
     credentials: true,
     methods: ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
@@ -107,7 +108,7 @@ function requireCsrf(req: any, res: any, next: any) {
   const cookieTok = req.cookies?.csrf_token;
   const headerTok = req.get('x-csrf-token') || req.get('X-CSRF-Token');
   if (!cookieTok || !headerTok || cookieTok !== headerTok) {
-    return res.status(403).json({ error: 'Invalid CSRF token' });
+    return next(forbidden('CSRF_INVALID', 'Invalid CSRF token'));
   }
   return next();
 }
@@ -136,9 +137,9 @@ const LoginDto = z.object({
   password: z.string().min(8).max(128),
 });
 
-auth.post('/register', async (req: any, res: any) => {
+auth.post('/register', async (req: any, res: any, next: any) => {
   const parsed = RegisterDto.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  if (!parsed.success) return next(badRequest('VALIDATION_ERROR', 'Invalid request', parsed.error.flatten()));
   const { email, username, password } = parsed.data;
 
   const pwHash = await bcrypt.hash(password, 10);
@@ -154,7 +155,7 @@ auth.post('/register', async (req: any, res: any) => {
       expiresIn: '15m',
     });
     setAuthCookie(res, token);
-    res.status(201).json({ user });
+  res.status(201).json({ user });
 
     // fire-and-forget: send verification email
     try {
@@ -177,16 +178,15 @@ auth.post('/register', async (req: any, res: any) => {
     }
   } catch (e: any) {
     if (e?.code === '23505') {
-      // unique_violation
-      return res.status(409).json({ error: 'Email or username already exists' });
+      return next(conflict('USER_ALREADY_EXISTS', 'Email or username already exists'));
     }
-    return res.status(500).json({ error: 'Internal error' });
+    return next(internal());
   }
 });
 
-auth.post('/login', async (req: any, res: any) => {
+auth.post('/login', async (req: any, res: any, next: any) => {
   const parsed = LoginDto.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  if (!parsed.success) return next(badRequest('VALIDATION_ERROR', 'Invalid request', parsed.error.flatten()));
   const { emailOrUsername, password } = parsed.data;
 
   const { rows } = await query<{ id: number; email: string; username: string; password_hash: string }>(
@@ -194,10 +194,10 @@ auth.post('/login', async (req: any, res: any) => {
     [emailOrUsername],
   );
   const user = rows[0];
-  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  if (!user) return next(unauthorized('INVALID_CREDENTIALS', 'Invalid credentials'));
 
   const ok = await bcrypt.compare(password, user.password_hash);
-  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+  if (!ok) return next(unauthorized('INVALID_CREDENTIALS', 'Invalid credentials'));
 
   const token = jwt.sign({ sub: user.id, username: user.username }, process.env.JWT_SECRET || 'dev', {
     expiresIn: '15m',
@@ -214,13 +214,13 @@ api.use('/auth', auth);
 // JWT auth middleware and /me
 function requireAuth(req: any, res: any, next: any) {
   const token = req.cookies?.access_token;
-  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  if (!token) return next(unauthorized());
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev') as any;
     (req as any).user = { id: Number(payload.sub), username: payload.username };
     return next();
   } catch {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return next(unauthorized());
   }
 }
 
@@ -236,17 +236,17 @@ api.get('/auth/me', requireAuth, async (req: any, res: any) => {
 });
 
 // Email verification
-api.get('/auth/verify-email', async (req: any, res: any) => {
+api.get('/auth/verify-email', async (req: any, res: any, next: any) => {
   const token = String(req.query.token || '')
     .trim();
-  if (!token) return res.status(400).json({ error: 'Missing token' });
+  if (!token) return next(badRequest('MISSING_TOKEN', 'Missing token'));
   const { rows } = await query<{ user_id: number; expires_at: string }>(
     `SELECT user_id, expires_at FROM email_verification_tokens WHERE token = $1 LIMIT 1`,
     [token],
   );
   const row = rows[0];
-  if (!row) return res.status(400).json({ error: 'Invalid token' });
-  if (new Date(row.expires_at).getTime() < Date.now()) return res.status(400).json({ error: 'Token expired' });
+  if (!row) return next(badRequest('INVALID_TOKEN', 'Invalid token'));
+  if (new Date(row.expires_at).getTime() < Date.now()) return next(badRequest('TOKEN_EXPIRED', 'Token expired'));
   await query(`UPDATE users SET email_verified_at = now() WHERE id = $1`, [row.user_id]);
   await query(`DELETE FROM email_verification_tokens WHERE token = $1`, [token]);
   res.json({ ok: true });
@@ -254,9 +254,9 @@ api.get('/auth/verify-email', async (req: any, res: any) => {
 
 // Forgot / reset password
 const ForgotDto = z.object({ emailOrUsername: z.string().min(1) });
-api.post('/auth/forgot-password', async (req: any, res: any) => {
+api.post('/auth/forgot-password', async (req: any, res: any, next: any) => {
   const parsed = ForgotDto.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  if (!parsed.success) return next(badRequest('VALIDATION_ERROR', 'Invalid request', parsed.error.flatten()));
   const { emailOrUsername } = parsed.data;
   const { rows } = await query<{ id: number; email: string }>(
     `SELECT id, email FROM users WHERE email = $1 OR username = $1 LIMIT 1`,
@@ -286,18 +286,18 @@ api.post('/auth/forgot-password', async (req: any, res: any) => {
 });
 
 const ResetDto = z.object({ token: z.string().min(1), newPassword: z.string().min(8).max(128) });
-api.post('/auth/reset-password', async (req: any, res: any) => {
+api.post('/auth/reset-password', async (req: any, res: any, next: any) => {
   const parsed = ResetDto.safeParse({ token: req.query.token || req.body?.token, newPassword: req.body?.newPassword });
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  if (!parsed.success) return next(badRequest('VALIDATION_ERROR', 'Invalid request', parsed.error.flatten()));
   const { token, newPassword } = parsed.data;
   const { rows } = await query<{ user_id: number; expires_at: string; token: string; used_at?: string }>(
     `SELECT user_id, expires_at, token, used_at FROM password_reset_tokens WHERE token = $1 LIMIT 1`,
     [token],
   );
   const row = rows[0];
-  if (!row) return res.status(400).json({ error: 'Invalid token' });
-  if (row.used_at) return res.status(400).json({ error: 'Token already used' });
-  if (new Date(row.expires_at).getTime() < Date.now()) return res.status(400).json({ error: 'Token expired' });
+  if (!row) return next(badRequest('INVALID_TOKEN', 'Invalid token'));
+  if (row.used_at) return next(badRequest('TOKEN_ALREADY_USED', 'Token already used'));
+  if (new Date(row.expires_at).getTime() < Date.now()) return next(badRequest('TOKEN_EXPIRED', 'Token expired'));
   const hash = await bcrypt.hash(newPassword, 10);
   await query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [hash, row.user_id]);
   await query(`UPDATE password_reset_tokens SET used_at = now() WHERE token = $1`, [token]);
@@ -361,4 +361,25 @@ io.on('connection', (socket: any) => {
 server.listen(PORT, () => {
   // eslint-disable-next-line no-console
   console.log(`[backend] listening on http://localhost:${PORT}`);
+});
+
+// ---- Not Found handler ----
+app.use((_req: any, _res: any, next: any) => {
+  next(new AppError('NOT_FOUND', 404, 'Not Found'));
+});
+
+// ---- Error handler (unified error responses) ----
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: any, _req: any, res: any, _next: any) => {
+  if (res.headersSent) return; // let Express handle
+  // Zod error fallback
+  if (err?.issues && Array.isArray(err.issues)) {
+    const payload = { code: 'VALIDATION_ERROR', message: 'Invalid request', details: err.flatten?.() || err.issues };
+    return res.status(400).json({ error: payload });
+  }
+  const status = Number(err?.status) || 500;
+  const code = typeof err?.code === 'string' ? err.code : status === 500 ? 'INTERNAL_ERROR' : 'ERROR';
+  const message = err?.message || (status === 500 ? 'Internal Server Error' : 'Error');
+  const details = err?.details;
+  return res.status(status).json({ error: { code, message, ...(details ? { details } : {}) } });
 });
