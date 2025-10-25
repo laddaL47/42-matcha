@@ -136,7 +136,30 @@ npx tsx scripts/auth-e2e.ts
 ```
 AUTH E2E OK
 ```
-## 10) オプション: WebSocket スモークテスト
+## 10) Socket.IO 認証（JWT/Cookie によるハンドシェイク）
+
+バックエンドは WS ハンドシェイク時に Cookie の `access_token` を検証します。未認証の接続は拒否され、クライアントは `connect_error: Unauthorized` を受け取ります。
+
+Node スクリプトで、未認証→失敗、認証→成功の流れを検証できます。
+
+```bash
+cd backend
+npx tsx scripts/ws-auth-test.ts
+```
+
+期待される出力（抜粋）:
+
+```
+[unauth] connect_error as expected: Unauthorized
+[auth] connected
+[server->client] hello { message: 'connected', userId: ... }
+[server->client] pong
+WS AUTH TEST OK
+```
+
+ブラウザから接続する場合（開発時）は、まず HTTP 側でログインして Cookie を取得し、`io("http://localhost:3000", { path: '/ws', withCredentials: true })` で接続してください（Vite プロキシで /ws → 3000 に中継されます）。
+
+## 11) オプション: WebSocket スモークテスト
 
 hello と ping/pong の往復を確認します。
 
