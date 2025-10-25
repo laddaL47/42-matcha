@@ -1,0 +1,8 @@
+pre-commit:
+  commands:
+    biome-check:
+      run: |
+        cd frontend
+        npx biome check --write $(echo {staged_files} | sed 's|frontend/||g')
+      glob: "frontend/**/*.{js,jsx,ts,tsx}"
+      stage_fixed: true
