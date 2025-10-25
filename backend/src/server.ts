@@ -8,6 +8,8 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { query } from './db/pool.js';
+import { sendMail } from './email/mailer.js';
+import crypto from 'crypto';
 
 const app = express();
 
@@ -30,6 +32,18 @@ app.use(
       return cb(new Error('CORS: origin not allowed'));
     },
     credentials: true,
+  }),
+);
+// Security middlewares
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+app.use(helmet());
+app.use(
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
   }),
 );
 
@@ -88,6 +102,26 @@ auth.post('/register', async (req: any, res: any) => {
     });
     setAuthCookie(res, token);
     res.status(201).json({ user });
+
+    // fire-and-forget: send verification email
+    try {
+      const vtoken = crypto.randomBytes(24).toString('hex');
+      const expires = new Date(Date.now() + 1000 * 60 * 60); // 1h
+      await query(
+        `INSERT INTO email_verification_tokens(user_id, token, expires_at) VALUES ($1, $2, $3)`,
+        [user.id, vtoken, expires.toISOString()],
+      );
+      const verifyUrl = `${process.env.CORS_ORIGIN?.split(',')[0] || 'http://localhost:5173'}/verify-email?token=${vtoken}`;
+      const apiVerifyUrl = `http://localhost:${PORT}/api/auth/verify-email?token=${vtoken}`;
+      await sendMail({
+        to: user.email,
+        subject: 'Verify your email',
+        text: `Click to verify: ${apiVerifyUrl}\n(If you have UI) ${verifyUrl}`,
+      });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[mail] verification send failed:', e);
+    }
   } catch (e: any) {
     if (e?.code === '23505') {
       // unique_violation
@@ -146,6 +180,75 @@ api.get('/auth/me', requireAuth, async (req: any, res: any) => {
   const user = rows[0];
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({ user });
+});
+
+// Email verification
+api.get('/auth/verify-email', async (req: any, res: any) => {
+  const token = String(req.query.token || '')
+    .trim();
+  if (!token) return res.status(400).json({ error: 'Missing token' });
+  const { rows } = await query<{ user_id: number; expires_at: string }>(
+    `SELECT user_id, expires_at FROM email_verification_tokens WHERE token = $1 LIMIT 1`,
+    [token],
+  );
+  const row = rows[0];
+  if (!row) return res.status(400).json({ error: 'Invalid token' });
+  if (new Date(row.expires_at).getTime() < Date.now()) return res.status(400).json({ error: 'Token expired' });
+  await query(`UPDATE users SET email_verified_at = now() WHERE id = $1`, [row.user_id]);
+  await query(`DELETE FROM email_verification_tokens WHERE token = $1`, [token]);
+  res.json({ ok: true });
+});
+
+// Forgot / reset password
+const ForgotDto = z.object({ emailOrUsername: z.string().min(1) });
+api.post('/auth/forgot-password', async (req: any, res: any) => {
+  const parsed = ForgotDto.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const { emailOrUsername } = parsed.data;
+  const { rows } = await query<{ id: number; email: string }>(
+    `SELECT id, email FROM users WHERE email = $1 OR username = $1 LIMIT 1`,
+    [emailOrUsername],
+  );
+  const user = rows[0];
+  // respond 200 regardless to avoid user enumeration
+  if (!user) return res.json({ ok: true });
+  try {
+    const rtoken = crypto.randomBytes(24).toString('hex');
+    const expires = new Date(Date.now() + 1000 * 60 * 60); // 1h
+    await query(
+      `INSERT INTO password_reset_tokens(user_id, token, expires_at) VALUES ($1, $2, $3)`,
+      [user.id, rtoken, expires.toISOString()],
+    );
+    const resetUrl = `http://localhost:${PORT}/api/auth/reset-password?token=${rtoken}`;
+    await sendMail({
+      to: user.email,
+      subject: 'Reset your password',
+      text: `To reset your password, POST new password to: ${resetUrl}`,
+    });
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[mail] reset send failed:', e);
+  }
+  res.json({ ok: true });
+});
+
+const ResetDto = z.object({ token: z.string().min(1), newPassword: z.string().min(8).max(128) });
+api.post('/auth/reset-password', async (req: any, res: any) => {
+  const parsed = ResetDto.safeParse({ token: req.query.token || req.body?.token, newPassword: req.body?.newPassword });
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const { token, newPassword } = parsed.data;
+  const { rows } = await query<{ user_id: number; expires_at: string; token: string; used_at?: string }>(
+    `SELECT user_id, expires_at, token, used_at FROM password_reset_tokens WHERE token = $1 LIMIT 1`,
+    [token],
+  );
+  const row = rows[0];
+  if (!row) return res.status(400).json({ error: 'Invalid token' });
+  if (row.used_at) return res.status(400).json({ error: 'Token already used' });
+  if (new Date(row.expires_at).getTime() < Date.now()) return res.status(400).json({ error: 'Token expired' });
+  const hash = await bcrypt.hash(newPassword, 10);
+  await query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [hash, row.user_id]);
+  await query(`UPDATE password_reset_tokens SET used_at = now() WHERE token = $1`, [token]);
+  res.json({ ok: true });
 });
 
 app.use('/api', api);
