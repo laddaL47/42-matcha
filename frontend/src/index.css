@@ -7,6 +7,13 @@
   color: rgba(255, 255, 255, 0.87);
   background-color: #242424;
 
+  /* 緑色テーマのカスタムカラー */
+  --matcha-primary: #4d9d4d;
+  --matcha-primary-light: #66b066;
+  --matcha-primary-dark: #3d7a3d;
+  --matcha-accent: #85c285;
+  --matcha-background: #f0f9f0;
+
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -15,11 +22,11 @@
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: var(--matcha-primary);
   text-decoration: inherit;
 }
 a:hover {
-  color: #535bf2;
+  color: var(--matcha-primary-dark);
 }
 
 body {
@@ -47,7 +54,7 @@ button {
   transition: border-color 0.25s;
 }
 button:hover {
-  border-color: #646cff;
+  border-color: var(--matcha-primary);
 }
 button:focus,
 button:focus-visible {
@@ -57,12 +64,12 @@ button:focus-visible {
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
-    background-color: #ffffff;
+    background-color: var(--matcha-background);
   }
   a:hover {
-    color: #747bff;
+    color: var(--matcha-primary-dark);
   }
   button {
-    background-color: #f9f9f9;
+    background-color: var(--matcha-accent);
   }
 }
