@@ -3,6 +3,7 @@ import {
   Avatar,
   Badge,
   Card,
+  Center,
   Container,
   Grid,
   Group,
@@ -94,103 +95,105 @@ const Suggestions = () => {
   };
 
   return (
-    <Container size="lg" py="xl">
-      <Stack gap="xl">
-        <div>
-          <Title order={1} mb="sm">
-            おすすめユーザー
-          </Title>
-          <Text c="dimmed" size="lg">
-            あなたにマッチしそうなユーザーを表示しています
-          </Text>
-        </div>
+    <Center>
+      <Container size="xl" py="xl">
+        <Stack gap="xl">
+          <div>
+            <Title order={1} mb="sm">
+              おすすめユーザー
+            </Title>
+            <Text c="dimmed" size="lg">
+              あなたにマッチしそうなユーザーを表示しています
+            </Text>
+          </div>
 
-        <Grid>
-          {mockUsers.map((user) => (
-            <Grid.Col key={user.id} span={{ base: 12, sm: 6, md: 4 }}>
-              <Card shadow="sm" padding="lg" radius="md" withBorder h="100%">
-                <Stack gap="md" h="100%">
-                  {/* ユーザー情報 */}
-                  <Group justify="space-between" align="flex-start">
-                    <Group gap="sm">
-                      <Avatar src={user.photos[0]} size="lg" radius="xl" />
-                      <div>
-                        <Text fw={600} size="lg">
-                          {user.firstName} {user.lastName}
-                        </Text>
-                        <Text size="sm" c="dimmed">
-                          @{user.username}
-                        </Text>
-                        <Group gap="xs" mt={4}>
-                          <Text size="sm" c="dimmed">
-                            {user.age}歳
+          <Grid>
+            {mockUsers.map((user) => (
+              <Grid.Col key={user.id} span={{ base: 12, sm: 6, md: 4 }}>
+                <Card shadow="sm" padding="lg" radius="md" withBorder h="100%">
+                  <Stack gap="md" h="100%">
+                    {/* ユーザー情報 */}
+                    <Group justify="space-between" align="flex-start">
+                      <Group gap="sm">
+                        <Avatar src={user.photos[0]} size="lg" radius="xl" />
+                        <div>
+                          <Text fw={600} size="lg">
+                            {user.firstName} {user.lastName}
                           </Text>
-                          <IconMapPin size={14} />
                           <Text size="sm" c="dimmed">
-                            {user.distance}km
+                            @{user.username}
                           </Text>
-                        </Group>
-                      </div>
+                          <Group gap="xs" mt={4}>
+                            <Text size="sm" c="dimmed">
+                              {user.age}歳
+                            </Text>
+                            <IconMapPin size={14} />
+                            <Text size="sm" c="dimmed">
+                              {user.distance}km
+                            </Text>
+                          </Group>
+                        </div>
+                      </Group>
+
+                      {/* オンライン状態 */}
+                      <Badge color={user.isOnline ? "green" : "gray"} variant="light" size="sm">
+                        {user.isOnline ? "オンライン" : user.lastSeen}
+                      </Badge>
                     </Group>
 
-                    {/* オンライン状態 */}
-                    <Badge color={user.isOnline ? "green" : "gray"} variant="light" size="sm">
-                      {user.isOnline ? "オンライン" : user.lastSeen}
-                    </Badge>
-                  </Group>
+                    {/* 自己紹介 */}
+                    <Text size="sm" lineClamp={3}>
+                      {user.bio}
+                    </Text>
 
-                  {/* 自己紹介 */}
-                  <Text size="sm" lineClamp={3}>
-                    {user.bio}
-                  </Text>
+                    {/* タグ */}
+                    <Group gap="xs">
+                      {user.tags.map((tag) => (
+                        <Badge key={tag} variant="light" size="sm">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </Group>
 
-                  {/* タグ */}
-                  <Group gap="xs">
-                    {user.tags.map((tag) => (
-                      <Badge key={tag} variant="light" size="sm">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </Group>
+                    {/* アクションボタン */}
+                    <Group justify="center" mt="auto">
+                      <Tooltip label="パス">
+                        <ActionIcon
+                          variant="outline"
+                          color="red"
+                          size="lg"
+                          onClick={() => handlePass(user.id)}
+                        >
+                          <IconX size={20} />
+                        </ActionIcon>
+                      </Tooltip>
 
-                  {/* アクションボタン */}
-                  <Group justify="center" mt="auto">
-                    <Tooltip label="パス">
-                      <ActionIcon
-                        variant="outline"
-                        color="red"
-                        size="lg"
-                        onClick={() => handlePass(user.id)}
-                      >
-                        <IconX size={20} />
-                      </ActionIcon>
-                    </Tooltip>
+                      <Tooltip label="いいね">
+                        <ActionIcon
+                          variant="filled"
+                          color="pink"
+                          size="lg"
+                          onClick={() => handleLike(user.id)}
+                        >
+                          <IconHeart size={20} />
+                        </ActionIcon>
+                      </Tooltip>
+                    </Group>
+                  </Stack>
+                </Card>
+              </Grid.Col>
+            ))}
+          </Grid>
 
-                    <Tooltip label="いいね">
-                      <ActionIcon
-                        variant="filled"
-                        color="pink"
-                        size="lg"
-                        onClick={() => handleLike(user.id)}
-                      >
-                        <IconHeart size={20} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </Group>
-                </Stack>
-              </Card>
-            </Grid.Col>
-          ))}
-        </Grid>
-
-        {/* ローディング・エラー状態のプレースホルダー */}
-        <Group justify="center" mt="xl">
-          <Text size="sm" c="dimmed">
-            もっと多くのユーザーを表示するには、フィルターや検索機能を使用してください
-          </Text>
-        </Group>
-      </Stack>
-    </Container>
+          {/* ローディング・エラー状態のプレースホルダー */}
+          <Group justify="center" mt="xl">
+            <Text size="sm" c="dimmed">
+              もっと多くのユーザーを表示するには、フィルターや検索機能を使用してください
+            </Text>
+          </Group>
+        </Stack>
+      </Container>
+    </Center>
   );
 };
 
