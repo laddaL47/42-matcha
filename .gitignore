@@ -1,2 +1,7 @@
+# Node/Backend
+backend/node_modules/
+backend/.env
+uploads/
+backend/dist/
 node_modules/
 tmp/
