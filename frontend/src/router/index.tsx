@@ -1,4 +1,5 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import App from "../pages/App";
 import AuthPage from "../pages/auth/AuthPage";
 import Dashboard from "../pages/Dashboard";
 import Suggestions from "../pages/suggestions/Suggestions";
@@ -6,6 +7,10 @@ import Suggestions from "../pages/suggestions/Suggestions";
 const router = createBrowserRouter([
   {
     path: "/",
+    element: <App />,
+  },
+  {
+    path: "/dashboard",
     element: <Dashboard />,
   },
   {
