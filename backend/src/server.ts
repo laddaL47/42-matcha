@@ -316,9 +316,40 @@ const io = new SocketIOServer(server, {
   },
 });
 
+// --- Socket.IO auth: verify JWT from Cookie during handshake ---
+function parseCookie(header?: string) {
+  const out: Record<string, string> = {};
+  if (!header) return out;
+  const parts = header.split(';');
+  for (const p of parts) {
+    const [k, ...rest] = p.trim().split('=');
+    if (!k) continue;
+    out[k] = decodeURIComponent(rest.join('='));
+  }
+  return out;
+}
+
+io.use((socket: any, next: any) => {
+  try {
+    const cookies = parseCookie(socket.handshake.headers?.cookie as string | undefined);
+    const token = cookies['access_token'];
+    if (!token) return next(new Error('Unauthorized'));
+    const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev') as any;
+    socket.data = socket.data || {};
+    socket.data.userId = Number(payload.sub);
+    socket.data.username = payload.username;
+    return next();
+  } catch (_e) {
+    return next(new Error('Unauthorized'));
+  }
+});
+
 io.on('connection', (socket: any) => {
   // basic handshake
-  socket.emit('hello', { message: 'connected' });
+  // authenticated user context
+  // eslint-disable-next-line no-console
+  console.log('[ws] connected userId=%s username=%s', socket.data?.userId, socket.data?.username);
+  socket.emit('hello', { message: 'connected', userId: socket.data?.userId });
 
   socket.on('ping', () => socket.emit('pong'));
 
