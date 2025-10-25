@@ -4,6 +4,10 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
+import jwt from 'jsonwebtoken';
+import { z } from 'zod';
+import bcrypt from 'bcryptjs';
+import { query } from './db/pool.js';
 
 const app = express();
 
@@ -54,19 +58,95 @@ api.get('/health', (_req: any, res: any) => {
 
 // Auth skeleton
 const auth = express.Router();
-auth.post('/register', (_req: any, res: any) => {
-  // TODO: validate -> save user -> send verify email
-  res.status(501).json({ message: 'Not implemented' });
+const RegisterDto = z.object({
+  email: z.string().email(),
+  username: z.string().min(3).max(30),
+  password: z.string().min(8).max(128),
 });
-auth.post('/login', (_req: any, res: any) => {
-  // TODO: verify user -> issue JWT -> set cookie
-  res.status(501).json({ message: 'Not implemented' });
+
+const LoginDto = z.object({
+  emailOrUsername: z.string().min(1),
+  password: z.string().min(8).max(128),
+});
+
+auth.post('/register', async (req: any, res: any) => {
+  const parsed = RegisterDto.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const { email, username, password } = parsed.data;
+
+  const pwHash = await bcrypt.hash(password, 10);
+  try {
+    const { rows } = await query<{ id: number; email: string; username: string }>(
+      `INSERT INTO users(email, username, password_hash)
+       VALUES ($1, $2, $3)
+       RETURNING id, email, username;`,
+      [email, username, pwHash],
+    );
+    const user = rows[0];
+    const token = jwt.sign({ sub: user.id, username: user.username }, process.env.JWT_SECRET || 'dev', {
+      expiresIn: '15m',
+    });
+    setAuthCookie(res, token);
+    res.status(201).json({ user });
+  } catch (e: any) {
+    if (e?.code === '23505') {
+      // unique_violation
+      return res.status(409).json({ error: 'Email or username already exists' });
+    }
+    return res.status(500).json({ error: 'Internal error' });
+  }
+});
+
+auth.post('/login', async (req: any, res: any) => {
+  const parsed = LoginDto.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const { emailOrUsername, password } = parsed.data;
+
+  const { rows } = await query<{ id: number; email: string; username: string; password_hash: string }>(
+    `SELECT id, email, username, password_hash FROM users WHERE email = $1 OR username = $1 LIMIT 1;`,
+    [emailOrUsername],
+  );
+  const user = rows[0];
+  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+
+  const ok = await bcrypt.compare(password, user.password_hash);
+  if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+
+  const token = jwt.sign({ sub: user.id, username: user.username }, process.env.JWT_SECRET || 'dev', {
+    expiresIn: '15m',
+  });
+  setAuthCookie(res, token);
+  res.json({ user: { id: user.id, email: user.email, username: user.username } });
 });
 auth.post('/logout', (_req: any, res: any) => {
   res.clearCookie('access_token', { path: '/' });
   res.status(204).send();
 });
 api.use('/auth', auth);
+
+// JWT auth middleware and /me
+function requireAuth(req: any, res: any, next: any) {
+  const token = req.cookies?.access_token;
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET || 'dev') as any;
+    (req as any).user = { id: Number(payload.sub), username: payload.username };
+    return next();
+  } catch {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+}
+
+api.get('/auth/me', requireAuth, async (req: any, res: any) => {
+  const userId = req.user.id;
+  const { rows } = await query<{ id: number; email: string; username: string }>(
+    `SELECT id, email, username FROM users WHERE id = $1 LIMIT 1;`,
+    [userId],
+  );
+  const user = rows[0];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({ user });
+});
 
 app.use('/api', api);
 
