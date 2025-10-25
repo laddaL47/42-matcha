@@ -70,11 +70,11 @@ const Dashboard = () => {
                     <Text size="sm" c="dimmed">
                       新しいマッチ
                     </Text>
-                    <Text size="xl" fw={700} c="pink">
+                    <Text size="xl" fw={700} c="green">
                       {stats.newMatches}
                     </Text>
                   </div>
-                  <IconHeart size={32} color="var(--mantine-color-pink-6)" />
+                  <IconHeart size={32} color="var(--mantine-color-green-6)" />
                 </Group>
               </Card>
             </Grid.Col>
@@ -139,7 +139,7 @@ const Dashboard = () => {
                   component={Link}
                   to="/suggestions"
                   variant="filled"
-                  color="pink"
+                  color="green"
                   size="lg"
                   fullWidth
                   leftSection={<IconUsers size={20} />}

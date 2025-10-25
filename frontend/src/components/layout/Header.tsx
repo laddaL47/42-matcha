@@ -27,7 +27,7 @@ const Header = () => {
             to="/"
             size="xl"
             fw={700}
-            c="pink"
+            c="green"
             style={{ textDecoration: "none" }}
           >
             🍵 Matcha

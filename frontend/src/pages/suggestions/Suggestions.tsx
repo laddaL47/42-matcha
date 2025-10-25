@@ -171,7 +171,7 @@ const Suggestions = () => {
                       <Tooltip label="いいね">
                         <ActionIcon
                           variant="filled"
-                          color="pink"
+                          color="green"
                           size="lg"
                           onClick={() => handleLike(user.id)}
                         >

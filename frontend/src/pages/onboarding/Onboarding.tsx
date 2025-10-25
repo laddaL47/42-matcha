@@ -139,7 +139,7 @@ const Onboarding = () => {
         return (
           <Stack align="center" gap="xl" py="xl">
             <div style={{ textAlign: "center" }}>
-              <Title order={1} size="3rem" mb="md" c="pink">
+              <Title order={1} size="3rem" mb="md" c="green">
                 🍵
               </Title>
               <Title order={1} mb="md">
@@ -154,7 +154,7 @@ const Onboarding = () => {
             <Card shadow="sm" padding="xl" radius="md" withBorder maw={400}>
               <Stack gap="md">
                 <Group>
-                  <IconHeart size={24} color="var(--mantine-color-pink-6)" />
+                  <IconHeart size={24} color="var(--mantine-color-green-6)" />
                   <Text fw={500}>マッチング機能</Text>
                 </Group>
                 <Text size="sm" c="dimmed">
@@ -325,7 +325,7 @@ const Onboarding = () => {
                   <Badge
                     key={tag}
                     variant={preferences.tags.includes(tag) ? "filled" : "outline"}
-                    color={preferences.tags.includes(tag) ? "pink" : "gray"}
+                    color={preferences.tags.includes(tag) ? "green" : "gray"}
                     style={{ cursor: "pointer" }}
                     onClick={() => toggleTag(tag)}
                   >
@@ -437,7 +437,7 @@ const Onboarding = () => {
     <Container size="md" py="xl">
       <Stack gap="xl">
         {/* プログレスバー */}
-        <Progress value={(activeStep / (steps.length - 1)) * 100} size="sm" color="pink" />
+        <Progress value={(activeStep / (steps.length - 1)) * 100} size="sm" color="green" />
 
         {/* ステッパー */}
         <Stepper active={activeStep} onStepClick={setActiveStep} allowNextStepsSelect={false}>
@@ -466,11 +466,11 @@ const Onboarding = () => {
           </Button>
 
           {activeStep === steps.length - 1 ? (
-            <Button color="pink" rightSection={<IconCheck size={16} />} onClick={handleComplete}>
+            <Button color="green" rightSection={<IconCheck size={16} />} onClick={handleComplete}>
               完了
             </Button>
           ) : (
-            <Button color="pink" rightSection={<IconArrowRight size={16} />} onClick={nextStep}>
+            <Button color="green" rightSection={<IconArrowRight size={16} />} onClick={nextStep}>
               次へ
             </Button>
           )}
