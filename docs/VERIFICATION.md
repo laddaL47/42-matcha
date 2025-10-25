@@ -392,6 +392,32 @@ OK: hello + ping/pong verified
 - Quoted-printable line breaks: token lines may wrap with `=\n` and `=3D`; the provided CLI snippets normalize this.
 - Cookies/CORS: keep `CORS_ORIGIN=http://localhost:5173` and send cookies from browsers with `credentials: true`.
 
+## Error response format (unified)
+
+All API errors use a unified JSON structure:
+
+```json
+{
+  "error": {
+    "code": "INVALID_CREDENTIALS",
+    "message": "Invalid credentials",
+    "details": {}
+  }
+}
+```
+
+- code: machine-readable error code
+- message: human-readable short description
+- details: optional extras (e.g., validation issues from zod)
+
+Common codes:
+
+- VALIDATION_ERROR: invalid request (zod failure)
+- UNAUTHORIZED: no/invalid session
+- CSRF_INVALID: CSRF token mismatch/missing
+- USER_ALREADY_EXISTS: email/username conflict
+- INVALID_TOKEN / TOKEN_EXPIRED / TOKEN_ALREADY_USED: verify/reset tokens
+
 ## Cleanup
 
 - Stop services:
