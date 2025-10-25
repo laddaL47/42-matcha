@@ -1,8 +1,16 @@
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { createBrowserRouter } from "react-router-dom";
+import Layout from "../components/layout/Layout";
 import App from "../pages/App";
 import AuthPage from "../pages/auth/AuthPage";
+import ChatMain from "../pages/ChatMain";
+import ChatRoom from "../pages/ChatRoom";
 import Dashboard from "../pages/Dashboard";
+import Notifications from "../pages/Notifications";
+import Onboarding from "../pages/onboarding/Onboarding";
+import ProfileEdit from "../pages/ProfileEdit";
+import Settings from "../pages/Settings";
 import Suggestions from "../pages/suggestions/Suggestions";
+import UserProfile from "../pages/UserProfile";
 
 const router = createBrowserRouter([
   {
@@ -10,42 +18,50 @@ const router = createBrowserRouter([
     element: <App />,
   },
   {
-    path: "/dashboard",
-    element: <Dashboard />,
+    path: "/onboarding",
+    element: <Onboarding />,
   },
   {
     path: "/authn",
     element: <AuthPage />,
   },
   {
-    path: "/suggestions",
-    element: <Suggestions />,
+    element: <Layout />,
+    children: [
+      {
+        path: "/dashboard",
+        element: <Dashboard />,
+      },
+      {
+        path: "/suggestions",
+        element: <Suggestions />,
+      },
+      {
+        path: "/profile/edit",
+        element: <ProfileEdit />,
+      },
+      {
+        path: "/u/:username",
+        element: <UserProfile />,
+      },
+      {
+        path: "/chat",
+        element: <ChatMain />,
+      },
+      {
+        path: "/chat/:connectionId",
+        element: <ChatRoom />,
+      },
+      {
+        path: "/notifications",
+        element: <Notifications />,
+      },
+      {
+        path: "/settings",
+        element: <Settings />,
+      },
+    ],
   },
-  // TODO: 他のページを追加
-  // {
-  //   path: "/profile/edit",
-  //   element: <ProfileEdit />,
-  // },
-  // {
-  //   path: "/u/:username",
-  //   element: <UserProfile />,
-  // },
-  // {
-  //   path: "/chat",
-  //   element: <ChatMain />,
-  // },
-  // {
-  //   path: "/chat/:connectionId",
-  //   element: <ChatRoom />,
-  // },
-  // {
-  //   path: "/notifications",
-  //   element: <Notifications />,
-  // },
-  // {
-  //   path: "/settings",
-  //   element: <Settings />,
-  // },
 ]);
 
 export default router;
