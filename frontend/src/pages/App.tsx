@@ -22,7 +22,7 @@ function App() {
           {/* ヘッダー */}
           <div style={{ textAlign: "center" }}>
             <Title order={1} size="4rem" mb="md" c="pink">
-              💕 Matcha
+              🍵 Matcha
             </Title>
             <Text size="xl" c="dimmed" maw={600} mx="auto">
               素敵な出会いを見つけましょう。あなたにぴったりの人とマッチできます。

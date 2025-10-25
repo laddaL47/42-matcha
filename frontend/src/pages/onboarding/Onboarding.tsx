@@ -140,7 +140,7 @@ const Onboarding = () => {
           <Stack align="center" gap="xl" py="xl">
             <div style={{ textAlign: "center" }}>
               <Title order={1} size="3rem" mb="md" c="pink">
-                💕
+                🍵
               </Title>
               <Title order={1} mb="md">
                 Matchaへようこそ！

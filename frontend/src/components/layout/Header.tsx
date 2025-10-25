@@ -30,7 +30,7 @@ const Header = () => {
             c="pink"
             style={{ textDecoration: "none" }}
           >
-            💕 Matcha
+            🍵 Matcha
           </Text>
         </Group>
 
