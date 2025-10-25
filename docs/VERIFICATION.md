@@ -69,7 +69,31 @@ curl -i -c "$CJ" \
 curl -sS -b "$CJ" -H 'Accept: application/json' http://localhost:3000/api/auth/me | jq .
 ```
 
-## 6) メール検証（MailHog）
+## 6) CSRF 保護（セッションがある変更系 API）
+
+ログイン後など、セッション Cookie（access_token）が付与されている状態での変更系 API（POST/PUT/PATCH/DELETE）は CSRF 対策として二重送信トークン（double-submit）を要求します。
+
+- サーバは「安全なメソッド（GET/HEAD/OPTIONS）」に対し、ログイン済みであれば `csrf_token` Cookie を発行し、同時にレスポンスヘッダ `X-CSRF-Token` にも値を乗せます。
+- 変更系 API を叩く際は、`X-CSRF-Token` ヘッダに `csrf_token` Cookie と同じ値を付与してください。
+- 不一致 or 欠落時は 403 になります。
+
+例: ログアウト API の検証（403 → 204）
+
+```bash
+# 1) まずログイン（または register）して Cookie を保存している前提で、CSRF なしのログアウトを試す
+curl -i -b "$CJ" -X POST http://localhost:3000/api/auth/logout
+# -> HTTP/1.1 403 Forbidden
+
+# 2) 安全な GET で CSRF トークンを取得（ヘッダから取り出す）
+csrf=$(curl -sS -D - -o /dev/null -b "$CJ" http://localhost:3000/api/health | awk '/^x-csrf-token:/ {print $2}' | tr -d '\r')
+echo "csrf=$csrf"
+
+# 3) ヘッダに X-CSRF-Token を付けてログアウト
+curl -i -b "$CJ" -H "X-CSRF-Token: $csrf" -X POST http://localhost:3000/api/auth/logout
+# -> HTTP/1.1 204 No Content
+```
+
+## 7) メール検証（MailHog）
 register 成功時、検証メールが MailHog に届きます。
 
 - UI で確認する場合: http://localhost:8025 を開き、最新の「Verify your email」を開いて検証リンクをクリックします。
@@ -89,7 +113,7 @@ curl -sS -H 'Accept: application/json' "http://localhost:3000/api/auth/verify-em
 ```json
 { "ok": true }
 ```
-## 7) パスワードリセット（forgot → reset → login）
+## 8) パスワードリセット（forgot → reset → login）
 
 - リセットリンクを要求（登録済みの email か username を指定）
 ```bash
@@ -98,7 +122,7 @@ curl -sS -H 'Content-Type: application/json' -H 'Accept: application/json' \
   http://localhost:3000/api/auth/forgot-password | jq .
 ```
 
-## 8) オプション: 認証 E2E スクリプト
+## 9) オプション: 認証 E2E スクリプト
 One-shot end-to-end test that runs: register → verify (MailHog) → forgot → reset → login.
 
 ```bash
@@ -112,7 +136,7 @@ npx tsx scripts/auth-e2e.ts
 ```
 AUTH E2E OK
 ```
-## 9) オプション: WebSocket スモークテスト
+## 10) オプション: WebSocket スモークテスト
 
 hello と ping/pong の往復を確認します。
 
