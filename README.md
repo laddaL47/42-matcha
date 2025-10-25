@@ -4,6 +4,7 @@ Web Matcha（出会い系サイト）課題の実装リポジトリです。要�
 
 - 要約: PDF「Web Matcha」の日本語要約はチャット履歴参照
 - 実装計画: `docs/IMPLEMENTATION_PLAN.md`
+- 検証手順: `docs/VERIFICATION.md`
 
 ## すぐ見たい人向け
 
