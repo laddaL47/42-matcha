@@ -10,7 +10,7 @@ import bcrypt from 'bcryptjs';
 import { query } from './db/pool.js';
 import { sendMail } from './email/mailer.js';
 import crypto from 'crypto';
-import { AppError, badRequest, conflict, forbidden, internal, unauthorized } from './errors.js';
+import { AppError, badRequest, conflict, forbidden, internal, unauthorized, notFound } from './errors.js';
 
 const app = express();
 
@@ -233,6 +233,184 @@ api.get('/auth/me', requireAuth, async (req: any, res: any) => {
   const user = rows[0];
   if (!user) return res.status(404).json({ error: 'User not found' });
   res.json({ user });
+});
+
+// ---- Profile CRUD ----
+const GenderEnum = z.enum(['male', 'female', 'other']);
+const SexualPrefEnum = z.enum(['straight', 'gay', 'bisexual', 'other']);
+
+const ProfilePatchDto = z.object({
+  displayName: z.string().min(0).max(100).optional(),
+  gender: GenderEnum.optional(),
+  sexualPref: SexualPrefEnum.optional(),
+  bio: z.string().min(0).max(500).optional(),
+  birthdate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  fameRating: z.number().min(0).max(100).optional(),
+});
+
+api.get('/me/profile', requireAuth, async (req: any, res: any) => {
+  const userId = req.user.id;
+  const { rows } = await query<{
+    user_id: number;
+    display_name: string;
+    gender: string | null;
+    sexual_pref: string | null;
+    bio: string;
+    birthdate: string | null;
+    fame_rating: number;
+  }>(`SELECT user_id, display_name, gender, sexual_pref, bio, birthdate, fame_rating FROM profiles WHERE user_id = $1 LIMIT 1`, [
+    userId,
+  ]);
+  const row = rows[0];
+  const profile = row
+    ? {
+        userId: row.user_id,
+        displayName: row.display_name,
+        gender: row.gender,
+        sexualPref: row.sexual_pref,
+        bio: row.bio,
+        birthdate: row.birthdate,
+        fameRating: row.fame_rating,
+      }
+    : {
+        userId,
+        displayName: '',
+        gender: null,
+        sexualPref: null,
+        bio: '',
+        birthdate: null,
+        fameRating: 0,
+      };
+  res.json({ profile });
+});
+
+api.patch('/me/profile', requireAuth, async (req: any, res: any, next: any) => {
+  const parsed = ProfilePatchDto.safeParse(req.body || {});
+  if (!parsed.success) return next(badRequest('VALIDATION_ERROR', 'Invalid request', parsed.error.flatten()));
+  const { displayName, gender, sexualPref, bio, birthdate, fameRating } = parsed.data;
+  const userId = req.user.id;
+
+  // Build dynamic sets for upsert
+  const fields: string[] = [];
+  const values: any[] = [];
+  function push(field: string, dbName: string, value: any) {
+    fields.push(dbName);
+    values.push(value);
+  }
+  if (displayName !== undefined) push('displayName', 'display_name', displayName);
+  if (gender !== undefined) push('gender', 'gender', gender);
+  if (sexualPref !== undefined) push('sexualPref', 'sexual_pref', sexualPref);
+  if (bio !== undefined) push('bio', 'bio', bio);
+  if (birthdate !== undefined) push('birthdate', 'birthdate', birthdate);
+  if (fameRating !== undefined) push('fameRating', 'fame_rating', fameRating);
+
+  // If no fields provided, just return current profile
+  if (fields.length === 0) {
+    const { rows } = await query<{
+      user_id: number;
+      display_name: string;
+      gender: string | null;
+      sexual_pref: string | null;
+      bio: string;
+      birthdate: string | null;
+      fame_rating: number;
+    }>(`SELECT user_id, display_name, gender, sexual_pref, bio, birthdate, fame_rating FROM profiles WHERE user_id = $1 LIMIT 1`, [
+      userId,
+    ]);
+    const row = rows[0];
+    const profile = row
+      ? {
+          userId: row.user_id,
+          displayName: row.display_name,
+          gender: row.gender,
+          sexualPref: row.sexual_pref,
+          bio: row.bio,
+          birthdate: row.birthdate,
+          fameRating: row.fame_rating,
+        }
+      : { userId, displayName: '', gender: null, sexualPref: null, bio: '', birthdate: null, fameRating: 0 };
+    return res.json({ profile });
+  }
+
+  // Construct upsert
+  const cols = ['user_id', ...fields.map((_, i) => fields[i])];
+  const dbCols = ['user_id', ...fields.map((_, i) => ['gender', 'sexual_pref', 'bio', 'birthdate', 'fame_rating'][i])];
+  // Note: fields already aligned with db names via push
+  const insertCols = ['user_id', ...fields];
+  const insertParams = ['$1', ...fields.map((_, idx) => `$${idx + 2}`)];
+  const updates = fields.map((c) => `${c} = EXCLUDED.${c}`).join(', ');
+
+  const sql = `INSERT INTO profiles(${insertCols.join(', ')})
+               VALUES (${insertParams.join(', ')})
+               ON CONFLICT (user_id) DO UPDATE SET ${updates}, updated_at = now()
+               RETURNING user_id, display_name, gender, sexual_pref, bio, birthdate, fame_rating`;
+  const params = [userId, ...values];
+  try {
+    const { rows } = await query<{
+      user_id: number;
+      display_name: string;
+      gender: string | null;
+      sexual_pref: string | null;
+      bio: string;
+      birthdate: string | null;
+      fame_rating: number;
+    }>(sql, params);
+    const r = rows[0];
+    const profile = {
+      userId: r.user_id,
+      displayName: r.display_name,
+      gender: r.gender,
+      sexualPref: r.sexual_pref,
+      bio: r.bio,
+      birthdate: r.birthdate,
+      fameRating: r.fame_rating,
+    };
+    res.json({ profile });
+  } catch (e: any) {
+    if (e?.code === '23514') {
+      return next(badRequest('CONSTRAINT_VIOLATION', 'Invalid value'));
+    }
+    return next(internal());
+  }
+});
+
+// Public profile by username (no email)
+api.get('/users/:username', async (req: any, res: any, next: any) => {
+  const username = String(req.params.username || '').trim();
+  if (!username) return next(badRequest('VALIDATION_ERROR', 'Invalid username'));
+  const { rows } = await query<{
+    id: number;
+    username: string;
+    display_name: string;
+    gender: string | null;
+    sexual_pref: string | null;
+    bio: string;
+    birthdate: string | null;
+    fame_rating: number;
+  }>(
+    `SELECT u.id, u.username, p.display_name, p.gender, p.sexual_pref, p.bio, p.birthdate, p.fame_rating
+     FROM users u
+     LEFT JOIN profiles p ON p.user_id = u.id
+     WHERE u.username = $1
+     LIMIT 1`,
+    [username],
+  );
+  const row = rows[0];
+  if (!row) return next(notFound('USER_NOT_FOUND', 'User not found'));
+  const profile = {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name ?? '',
+    gender: row.gender,
+    sexualPref: row.sexual_pref,
+    bio: row.bio ?? '',
+    birthdate: row.birthdate,
+    fameRating: row.fame_rating ?? 0,
+  };
+  res.json({ profile });
 });
 
 // Email verification
