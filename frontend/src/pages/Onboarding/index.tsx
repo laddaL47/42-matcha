@@ -10,6 +10,7 @@ import {
   Grid,
   Group,
   Progress,
+  RangeSlider,
   Select,
   Slider,
   Stack,
@@ -46,7 +47,7 @@ const Onboarding = () => {
   });
 
   const [preferences, setPreferences] = useState({
-    ageRange: [18, 35] as [number, number],
+    ageRange: [18, 30] as [number, number],
     maxDistance: 50,
     tags: [] as string[],
   });
@@ -297,57 +298,47 @@ const Onboarding = () => {
               </Text>
             </div>
 
-            <Grid gutter="sm">
-              <Grid.Col span={6}>
-                <div>
-                  <Text size="sm" fw={500} mb="xs">
-                    年齢範囲
-                  </Text>
-                  <Slider
-                    value={preferences.ageRange}
-                    onChange={(value) =>
-                      setPreferences((prev) => ({ ...prev, ageRange: value as [number, number] }))
-                    }
-                    min={18}
-                    max={80}
-                    step={1}
-                    marks={[
-                      { value: 18, label: "18" },
-                      { value: 30, label: "30" },
-                      { value: 50, label: "50" },
-                      { value: 80, label: "80" },
-                    ]}
-                    size="sm"
-                  />
-                  <Text size="xs" c="dimmed" mt="xs">
-                    {preferences.ageRange[0]}歳 〜 {preferences.ageRange[1]}歳
-                  </Text>
-                </div>
-              </Grid.Col>
-              <Grid.Col span={6}>
-                <div>
-                  <Text size="sm" fw={500} mb="xs">
-                    最大距離: {preferences.maxDistance}km
-                  </Text>
-                  <Slider
-                    value={preferences.maxDistance}
-                    onChange={(value) =>
-                      setPreferences((prev) => ({ ...prev, maxDistance: value }))
-                    }
-                    min={1}
-                    max={100}
-                    step={1}
-                    marks={[
-                      { value: 1, label: "1km" },
-                      { value: 25, label: "25km" },
-                      { value: 50, label: "50km" },
-                      { value: 100, label: "100km" },
-                    ]}
-                    size="sm"
-                  />
-                </div>
-              </Grid.Col>
-            </Grid>
+            <Stack gap="md" mb="xl">
+              <Text size="sm" fw={500} mb="xs">
+                年齢範囲: {preferences.ageRange[0]}歳 〜{" "}
+                {preferences.ageRange[1] === 50 ? "50+歳" : `${preferences.ageRange[1]}歳`}
+              </Text>
+              <RangeSlider
+                value={preferences.ageRange}
+                onChange={(value) =>
+                  setPreferences((prev) => ({ ...prev, ageRange: value as [number, number] }))
+                }
+                min={18}
+                max={50}
+                step={1}
+                marks={[
+                  { value: 18, label: "18" },
+                  { value: 25, label: "25" },
+                  { value: 35, label: "35" },
+                  { value: 50, label: "50+" },
+                ]}
+                size="sm"
+              />
+            </Stack>
+            <Stack gap="md" mb="xl">
+              <Text size="sm" fw={500} mb="xs">
+                最大距離: {preferences.maxDistance}km
+              </Text>
+              <Slider
+                value={preferences.maxDistance}
+                onChange={(value) => setPreferences((prev) => ({ ...prev, maxDistance: value }))}
+                min={1}
+                max={100}
+                step={1}
+                marks={[
+                  { value: 1, label: "1km" },
+                  { value: 25, label: "25km" },
+                  { value: 50, label: "50km" },
+                  { value: 100, label: "100km" },
+                ]}
+                size="sm"
+              />
+            </Stack>
 
             <div>
               <Text size="sm" fw={500} mb="xs">
@@ -398,7 +389,7 @@ const Onboarding = () => {
               </Text>
             </div>
 
-            <Alert color="blue" icon={<IconMapPin size={14} />} size="sm">
+            <Alert color="blue" icon={<IconMapPin size={14} />}>
               位置情報は近くの人を見つけるために使用されます。プライバシーは保護されます。
             </Alert>
 
@@ -434,7 +425,7 @@ const Onboarding = () => {
                 )}
 
                 {location.latitude !== 0 && location.longitude !== 0 && (
-                  <Alert color="green" icon={<IconCheck size={14} />} size="sm">
+                  <Alert color="green" icon={<IconCheck size={14} />}>
                     位置情報が取得されました
                   </Alert>
                 )}
@@ -511,7 +502,6 @@ const Onboarding = () => {
                 key={`step-${step.label}-${index}`}
                 label={step.label}
                 description={step.description}
-                completed={completedSteps.includes(index)}
               />
             ))}
           </Stepper>
