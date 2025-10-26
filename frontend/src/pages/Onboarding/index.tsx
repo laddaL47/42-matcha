@@ -106,7 +106,7 @@ const Onboarding = () => {
 
   const handleComplete = () => {
     console.log("Onboarding completed:", { profile, preferences, location });
-    navigate("/dashboard");
+    navigate("/suggestions");
   };
 
   const toggleTag = (tag: string) => {
