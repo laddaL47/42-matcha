@@ -94,6 +94,9 @@ jobs:
       - name: Run smoke - Photos upload
         run: npm exec --workspace=backend tsx scripts/photos-smoke.ts
 
+      - name: Run smoke - Photos manage
+        run: npm exec --workspace=backend tsx scripts/photos-manage-smoke.ts
+
       - name: Upload server log on failure
         if: failure()
         uses: actions/upload-artifact@v4
