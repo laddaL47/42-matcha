@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS profiles (
   user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   gender TEXT CHECK (gender IN ('male','female','other')),
-  sexual_pref TEXT CHECK (sexual_pref IN ('straight','gay','bisexual','other')),
+  sexual_pref TEXT CHECK (sexual_pref IN ('straight','gay','lesbian','bisexual','other')),
   bio TEXT NOT NULL DEFAULT '',
   birthdate DATE,
   fame_rating REAL NOT NULL DEFAULT 0,

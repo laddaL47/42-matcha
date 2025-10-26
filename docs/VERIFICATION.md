@@ -183,6 +183,37 @@ WS AUTH TEST OK
 
 ## 12) オプション: WebSocket スモークテスト
 
+## 13) 写真アップロード（avatar + 最大 5 枚の gallery）
+
+エンドポイント（すべて認証 + CSRF 必須）
+
+- GET /api/me/photos: 自分の avatar と gallery 一覧を返却。
+- POST /api/me/avatar: multipart/form-data のファイル（フィールド名 file）を受け取り、プロフィール画像に設定。前の avatar は置き換え。
+- POST /api/me/photos: file を受け取り、gallery に追加（position 1..5 の空きに自動配置）。
+
+対応フォーマット: image/jpeg, image/png, image/webp（<= 10MB）
+
+curl 例（CSRF 取得後）:
+
+```bash
+csrf=$(curl -sS -D - -o /dev/null -b "$CJ" http://localhost:3000/api/health | awk '/^x-csrf-token:/ {print $2}' | tr -d '\r')
+
+# avatar アップロード
+curl -sS -b "$CJ" -H "X-CSRF-Token: $csrf" \
+  -F "file=@/path/to/avatar.jpg" \
+  http://localhost:3000/api/me/avatar | jq .
+
+# gallery 追加
+curl -sS -b "$CJ" -H "X-CSRF-Token: $csrf" \
+  -F "file=@/path/to/p1.jpg" \
+  http://localhost:3000/api/me/photos | jq .
+
+# 一覧
+curl -sS -b "$CJ" http://localhost:3000/api/me/photos | jq .
+```
+
+レスポンスの各 photo には `url` と `thumbUrl` が含まれます。静的パス `/uploads/...` で配信されます。
+
 hello と ping/pong の往復を確認します。
 
 ```bash
