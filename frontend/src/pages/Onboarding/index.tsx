@@ -10,6 +10,7 @@ import {
   Grid,
   Group,
   Progress,
+  RangeSlider,
   Select,
   Slider,
   Stack,
@@ -46,7 +47,7 @@ const Onboarding = () => {
   });
 
   const [preferences, setPreferences] = useState({
-    ageRange: [18, 35] as [number, number],
+    ageRange: [18, 30] as [number, number],
     maxDistance: 50,
     tags: [] as string[],
   });
@@ -137,57 +138,67 @@ const Onboarding = () => {
     switch (activeStep) {
       case 0:
         return (
-          <Stack align="center" gap="xl" py="xl">
+          <Stack align="center" gap="lg" py="md">
             <div style={{ textAlign: "center" }}>
-              <Title order={1} size="3rem" mb="md" c="green">
+              <Title order={1} size="2.5rem" mb="sm" c="green">
                 🍵
               </Title>
-              <Title order={1} mb="md">
+              <Title order={2} mb="sm">
                 Matchaへようこそ！
               </Title>
-              <Text size="lg" c="dimmed" maw={500}>
+              <Text size="md" c="dimmed" maw={400}>
                 素敵な出会いを見つけるための最初のステップです。
-                簡単な設定で、あなたにぴったりの人を見つけましょう。
               </Text>
             </div>
 
-            <Card shadow="sm" padding="xl" radius="md" withBorder maw={400}>
-              <Stack gap="md">
-                <Group>
-                  <IconHeart size={24} color="var(--mantine-color-green-6)" />
-                  <Text fw={500}>マッチング機能</Text>
-                </Group>
-                <Text size="sm" c="dimmed">
-                  共通の興味や価値観を持つ人とマッチできます
-                </Text>
-              </Stack>
-            </Card>
-
-            <Card shadow="sm" padding="xl" radius="md" withBorder maw={400}>
-              <Stack gap="md">
-                <Group>
-                  <IconMapPin size={24} color="var(--mantine-color-blue-6)" />
-                  <Text fw={500}>位置ベース検索</Text>
-                </Group>
-                <Text size="sm" c="dimmed">
-                  近くの人を見つけて、実際に会うことができます
-                </Text>
-              </Stack>
-            </Card>
+            <Grid gutter="md" style={{ width: "100%", maxWidth: 500 }}>
+              <Grid.Col span={6}>
+                <Card shadow="sm" padding="md" radius="md" withBorder h="100%">
+                  <Stack gap="sm">
+                    <Group>
+                      <IconHeart size={20} color="var(--mantine-color-green-6)" />
+                      <Text fw={500} size="sm">
+                        マッチング機能
+                      </Text>
+                    </Group>
+                    <Text size="xs" c="dimmed">
+                      共通の興味や価値観を持つ人とマッチできます
+                    </Text>
+                  </Stack>
+                </Card>
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <Card shadow="sm" padding="md" radius="md" withBorder h="100%">
+                  <Stack gap="sm">
+                    <Group>
+                      <IconMapPin size={20} color="var(--mantine-color-blue-6)" />
+                      <Text fw={500} size="sm">
+                        位置ベース検索
+                      </Text>
+                    </Group>
+                    <Text size="xs" c="dimmed">
+                      近くの人を見つけて、実際に会うことができます
+                    </Text>
+                  </Stack>
+                </Card>
+              </Grid.Col>
+            </Grid>
           </Stack>
         );
 
       case 1:
         return (
-          <Stack gap="xl" py="xl">
+          <Stack gap="md" py="md">
             <div style={{ textAlign: "center" }}>
-              <Title order={2} mb="sm">
+              <Title order={3} mb="xs">
                 プロフィールを設定しましょう
               </Title>
-              <Text c="dimmed">あなたのことを教えてください</Text>
+              <Text size="sm" c="dimmed">
+                あなたのことを教えてください
+              </Text>
             </div>
 
-            <Grid>
+            <Grid gutter="sm">
               <Grid.Col span={6}>
                 <TextInput
                   label="名"
@@ -195,6 +206,7 @@ const Onboarding = () => {
                   value={profile.firstName}
                   onChange={(e) => setProfile((prev) => ({ ...prev, firstName: e.target.value }))}
                   required
+                  size="sm"
                 />
               </Grid.Col>
               <Grid.Col span={6}>
@@ -204,56 +216,67 @@ const Onboarding = () => {
                   value={profile.lastName}
                   onChange={(e) => setProfile((prev) => ({ ...prev, lastName: e.target.value }))}
                   required
+                  size="sm"
                 />
               </Grid.Col>
             </Grid>
 
-            <TextInput
-              label="生年月日"
-              type="date"
-              value={profile.birthdate}
-              onChange={(e) => setProfile((prev) => ({ ...prev, birthdate: e.target.value }))}
-              required
-            />
-
-            <Select
-              label="性別"
-              placeholder="選択してください"
-              data={[
-                { value: "male", label: "男性" },
-                { value: "female", label: "女性" },
-                { value: "other", label: "その他" },
-              ]}
-              value={profile.gender}
-              onChange={(value) => setProfile((prev) => ({ ...prev, gender: value || "" }))}
-              required
-            />
+            <Grid gutter="sm">
+              <Grid.Col span={6}>
+                <TextInput
+                  label="生年月日"
+                  type="date"
+                  value={profile.birthdate}
+                  onChange={(e) => setProfile((prev) => ({ ...prev, birthdate: e.target.value }))}
+                  required
+                  size="sm"
+                />
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <Select
+                  label="性別"
+                  placeholder="選択してください"
+                  data={[
+                    { value: "male", label: "男性" },
+                    { value: "female", label: "女性" },
+                    { value: "other", label: "その他" },
+                  ]}
+                  value={profile.gender}
+                  onChange={(value) => setProfile((prev) => ({ ...prev, gender: value || "" }))}
+                  required
+                  size="sm"
+                />
+              </Grid.Col>
+            </Grid>
 
             <Textarea
               label="自己紹介"
               placeholder="あなたのことを教えてください..."
               value={profile.bio}
               onChange={(e) => setProfile((prev) => ({ ...prev, bio: e.target.value }))}
-              minRows={3}
+              minRows={2}
+              maxRows={3}
+              size="sm"
             />
 
             <div>
-              <Text size="sm" fw={500} mb="sm">
+              <Text size="sm" fw={500} mb="xs">
                 写真をアップロード（最大5枚）
               </Text>
               <FileInput
                 placeholder="写真を選択"
-                leftSection={<IconUpload size={16} />}
+                leftSection={<IconUpload size={14} />}
                 multiple
                 accept="image/*"
                 onChange={(files) => setProfile((prev) => ({ ...prev, photos: files || [] }))}
+                size="sm"
               />
               {profile.photos.length > 0 && (
-                <Group gap="sm" mt="md">
+                <Group gap="xs" mt="sm">
                   {profile.photos.map((file, index) => (
                     <Avatar
                       key={`photo-${file.name}-${index}`}
-                      size="md"
+                      size="sm"
                       src={URL.createObjectURL(file)}
                     />
                   ))}
@@ -265,40 +288,40 @@ const Onboarding = () => {
 
       case 2:
         return (
-          <Stack gap="xl" py="xl">
+          <Stack gap="md" py="md">
             <div style={{ textAlign: "center" }}>
-              <Title order={2} mb="sm">
+              <Title order={3} mb="xs">
                 好みを設定しましょう
               </Title>
-              <Text c="dimmed">興味のあることを選択してください</Text>
+              <Text size="sm" c="dimmed">
+                興味のあることを選択してください
+              </Text>
             </div>
 
-            <div>
-              <Text size="sm" fw={500} mb="sm">
-                年齢範囲
+            <Stack gap="md" mb="xl">
+              <Text size="sm" fw={500} mb="xs">
+                年齢範囲: {preferences.ageRange[0]}歳 〜{" "}
+                {preferences.ageRange[1] === 50 ? "50+歳" : `${preferences.ageRange[1]}歳`}
               </Text>
-              <Slider
+              <RangeSlider
                 value={preferences.ageRange}
                 onChange={(value) =>
                   setPreferences((prev) => ({ ...prev, ageRange: value as [number, number] }))
                 }
                 min={18}
-                max={80}
+                max={50}
                 step={1}
                 marks={[
                   { value: 18, label: "18" },
-                  { value: 30, label: "30" },
-                  { value: 50, label: "50" },
-                  { value: 80, label: "80" },
+                  { value: 25, label: "25" },
+                  { value: 35, label: "35" },
+                  { value: 50, label: "50+" },
                 ]}
+                size="sm"
               />
-              <Text size="sm" c="dimmed" mt="xs">
-                {preferences.ageRange[0]}歳 〜 {preferences.ageRange[1]}歳
-              </Text>
-            </div>
-
-            <div>
-              <Text size="sm" fw={500} mb="sm">
+            </Stack>
+            <Stack gap="md" mb="xl">
+              <Text size="sm" fw={500} mb="xs">
                 最大距離: {preferences.maxDistance}km
               </Text>
               <Slider
@@ -313,28 +336,40 @@ const Onboarding = () => {
                   { value: 50, label: "50km" },
                   { value: 100, label: "100km" },
                 ]}
+                size="sm"
               />
-            </div>
+            </Stack>
 
             <div>
-              <Text size="sm" fw={500} mb="sm">
+              <Text size="sm" fw={500} mb="xs">
                 興味のあるタグ（複数選択可）
               </Text>
-              <Group gap="sm">
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(80px, 1fr))",
+                  gap: "8px",
+                  maxHeight: "120px",
+                  overflowY: "auto",
+                  padding: "8px",
+                  border: "1px solid var(--mantine-color-gray-3)",
+                  borderRadius: "var(--mantine-radius-sm)",
+                }}
+              >
                 {availableTags.map((tag) => (
                   <Badge
                     key={tag}
                     variant={preferences.tags.includes(tag) ? "filled" : "outline"}
                     color={preferences.tags.includes(tag) ? "green" : "gray"}
-                    style={{ cursor: "pointer" }}
+                    style={{ cursor: "pointer", fontSize: "11px", padding: "4px 8px" }}
                     onClick={() => toggleTag(tag)}
                   >
                     {tag}
                   </Badge>
                 ))}
-              </Group>
+              </div>
               {preferences.tags.length > 0 && (
-                <Text size="sm" c="dimmed" mt="sm">
+                <Text size="xs" c="dimmed" mt="xs">
                   選択済み: {preferences.tags.join(", ")}
                 </Text>
               )}
@@ -344,24 +379,28 @@ const Onboarding = () => {
 
       case 3:
         return (
-          <Stack gap="xl" py="xl">
+          <Stack gap="md" py="md">
             <div style={{ textAlign: "center" }}>
-              <Title order={2} mb="sm">
+              <Title order={3} mb="xs">
                 位置情報を設定
               </Title>
-              <Text c="dimmed">近くの人を見つけるために位置情報が必要です</Text>
+              <Text size="sm" c="dimmed">
+                近くの人を見つけるために位置情報が必要です
+              </Text>
             </div>
 
-            <Alert color="blue" icon={<IconMapPin size={16} />}>
+            <Alert color="blue" icon={<IconMapPin size={14} />}>
               位置情報は近くの人を見つけるために使用されます。プライバシーは保護されます。
             </Alert>
 
-            <Card shadow="sm" padding="lg" radius="md" withBorder>
-              <Stack gap="md">
+            <Card shadow="sm" padding="md" radius="md" withBorder>
+              <Stack gap="sm">
                 <Group justify="space-between">
                   <div>
-                    <Text fw={500}>位置情報を許可</Text>
-                    <Text size="sm" c="dimmed">
+                    <Text fw={500} size="sm">
+                      位置情報を許可
+                    </Text>
+                    <Text size="xs" c="dimmed">
                       より正確なマッチングのために位置情報を使用します
                     </Text>
                   </div>
@@ -370,21 +409,23 @@ const Onboarding = () => {
                     onChange={(e) =>
                       setLocation((prev) => ({ ...prev, allowLocation: e.currentTarget.checked }))
                     }
+                    size="sm"
                   />
                 </Group>
 
                 {location.allowLocation && (
                   <Button
                     variant="outline"
-                    leftSection={<IconMapPin size={16} />}
+                    leftSection={<IconMapPin size={14} />}
                     onClick={getLocation}
+                    size="sm"
                   >
                     現在の位置を取得
                   </Button>
                 )}
 
                 {location.latitude !== 0 && location.longitude !== 0 && (
-                  <Alert color="green" icon={<IconCheck size={16} />}>
+                  <Alert color="green" icon={<IconCheck size={14} />}>
                     位置情報が取得されました
                   </Alert>
                 )}
@@ -395,33 +436,38 @@ const Onboarding = () => {
 
       case 4:
         return (
-          <Stack align="center" gap="xl" py="xl">
+          <Stack align="center" gap="lg" py="md">
             <div style={{ textAlign: "center" }}>
-              <Title order={1} size="3rem" mb="md" c="green">
+              <Title order={1} size="2.5rem" mb="sm" c="green">
                 🎉
               </Title>
-              <Title order={1} mb="md">
+              <Title order={2} mb="sm">
                 設定完了！
               </Title>
-              <Text size="lg" c="dimmed" maw={500}>
+              <Text size="md" c="dimmed" maw={400}>
                 素敵な出会いを見つける準備ができました。
-                早速、おすすめユーザーをチェックしてみましょう！
               </Text>
             </div>
 
-            <Card shadow="sm" padding="xl" radius="md" withBorder maw={400}>
-              <Stack gap="md">
+            <Card shadow="sm" padding="md" radius="md" withBorder maw={400}>
+              <Stack gap="sm">
                 <Group>
-                  <IconCheck size={24} color="var(--mantine-color-green-6)" />
-                  <Text fw={500}>プロフィール設定完了</Text>
+                  <IconCheck size={20} color="var(--mantine-color-green-6)" />
+                  <Text fw={500} size="sm">
+                    プロフィール設定完了
+                  </Text>
                 </Group>
                 <Group>
-                  <IconCheck size={24} color="var(--mantine-color-green-6)" />
-                  <Text fw={500}>好み設定完了</Text>
+                  <IconCheck size={20} color="var(--mantine-color-green-6)" />
+                  <Text fw={500} size="sm">
+                    好み設定完了
+                  </Text>
                 </Group>
                 <Group>
-                  <IconCheck size={24} color="var(--mantine-color-green-6)" />
-                  <Text fw={500}>位置情報設定完了</Text>
+                  <IconCheck size={20} color="var(--mantine-color-green-6)" />
+                  <Text fw={500} size="sm">
+                    位置情報設定完了
+                  </Text>
                 </Group>
               </Stack>
             </Card>
@@ -434,49 +480,59 @@ const Onboarding = () => {
   };
 
   return (
-    <Container size="md" py="xl">
-      <Stack gap="xl">
-        {/* プログレスバー */}
-        <Progress value={(activeStep / (steps.length - 1)) * 100} size="sm" color="green" />
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      <Container
+        size="md"
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          paddingTop: "1rem",
+          paddingBottom: "1rem",
+        }}
+      >
+        <Stack gap="md" style={{ flex: 1, overflow: "hidden" }}>
+          {/* プログレスバー */}
+          <Progress value={(activeStep / (steps.length - 1)) * 100} size="sm" color="green" />
 
-        {/* ステッパー */}
-        <Stepper active={activeStep} onStepClick={setActiveStep} allowNextStepsSelect={false}>
-          {steps.map((step, index) => (
-            <Stepper.Step
-              key={`step-${step.label}-${index}`}
-              label={step.label}
-              description={step.description}
-              completed={completedSteps.includes(index)}
-            />
-          ))}
-        </Stepper>
+          {/* ステッパー */}
+          <Stepper active={activeStep} onStepClick={setActiveStep} allowNextStepsSelect={false}>
+            {steps.map((step, index) => (
+              <Stepper.Step
+                key={`step-${step.label}-${index}`}
+                label={step.label}
+                description={step.description}
+              />
+            ))}
+          </Stepper>
 
-        {/* ステップコンテンツ */}
-        {renderStepContent()}
+          {/* ステップコンテンツ */}
+          <div style={{ flex: 1, overflow: "auto", minHeight: 0 }}>{renderStepContent()}</div>
 
-        {/* ナビゲーションボタン */}
-        <Group justify="space-between" mt="xl">
-          <Button
-            variant="outline"
-            leftSection={<IconArrowLeft size={16} />}
-            onClick={prevStep}
-            disabled={activeStep === 0}
-          >
-            戻る
-          </Button>
-
-          {activeStep === steps.length - 1 ? (
-            <Button color="green" rightSection={<IconCheck size={16} />} onClick={handleComplete}>
-              完了
+          {/* ナビゲーションボタン */}
+          <Group justify="space-between" mt="md" style={{ flexShrink: 0 }}>
+            <Button
+              variant="outline"
+              leftSection={<IconArrowLeft size={16} />}
+              onClick={prevStep}
+              disabled={activeStep === 0}
+            >
+              戻る
             </Button>
-          ) : (
-            <Button color="green" rightSection={<IconArrowRight size={16} />} onClick={nextStep}>
-              次へ
-            </Button>
-          )}
-        </Group>
-      </Stack>
-    </Container>
+
+            {activeStep === steps.length - 1 ? (
+              <Button color="green" rightSection={<IconCheck size={16} />} onClick={handleComplete}>
+                完了
+              </Button>
+            ) : (
+              <Button color="green" rightSection={<IconArrowRight size={16} />} onClick={nextStep}>
+                次へ
+              </Button>
+            )}
+          </Group>
+        </Stack>
+      </Container>
+    </div>
   );
 };
 
