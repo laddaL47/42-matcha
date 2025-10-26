@@ -1,0 +1,46 @@
+@base = http://localhost:3000
+@contentType = application/json
+
+### Health (gets CSRF token header when logged-in)
+GET {{base}}/api/health
+Accept: {{contentType}}
+
+### Register (unique email/username needed)
+# @name register
+POST {{base}}/api/auth/register
+Content-Type: {{contentType}}
+Accept: {{contentType}}
+
+{
+  "email": "fe_{{$timestamp}}@example.com",
+  "username": "fe_{{$timestamp}}",
+  "password": "Password!234"
+}
+
+### Me (requires cookie from register/login)
+GET {{base}}/api/auth/me
+Accept: {{contentType}}
+
+### Get CSRF (use response header x-csrf-token in next request)
+GET {{base}}/api/health
+Accept: {{contentType}}
+
+### Update profile (paste latest x-csrf-token header value)
+PATCH {{base}}/api/me/profile
+Accept: {{contentType}}
+Content-Type: {{contentType}}
+X-CSRF-Token: REPLACE_WITH_CSRF
+
+{
+  "bio": "Hello from REST Client",
+  "gender": "other"
+}
+
+### Photos list
+GET {{base}}/api/me/photos
+Accept: {{contentType}}
+
+### Logout (CSRF required)
+POST {{base}}/api/auth/logout
+Accept: {{contentType}}
+X-CSRF-Token: REPLACE_WITH_CSRF

@@ -16,6 +16,7 @@ import crypto from 'crypto';
 import { AppError, badRequest, conflict, forbidden, internal, unauthorized, notFound } from './errors.js';
 import multer from 'multer';
 import sharp from 'sharp';
+import { mountSwagger } from './openapi/swagger.js';
 
 const app = express();
 
@@ -505,6 +506,9 @@ api.post('/auth/reset-password', async (req: any, res: any, next: any) => {
 });
 
 app.use('/api', api);
+
+// Mount Swagger/OpenAPI endpoints
+mountSwagger(app);
 
 // ---- Photos: helpers ----
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
