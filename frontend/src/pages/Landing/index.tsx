@@ -159,7 +159,7 @@ function App() {
               </Button>
             </Group>
             <Text size="sm" c="dimmed">
-              無料で始められます • いつでもキャンセル可能
+              無料で始められます
             </Text>
           </Stack>
 
