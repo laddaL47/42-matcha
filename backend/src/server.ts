@@ -316,7 +316,7 @@ api.patch('/me/profile', requireAuth, async (req: any, res: any, next: any) => {
   // Build dynamic sets for upsert
   const fields: string[] = [];
   const values: any[] = [];
-  function push(field: string, dbName: string, value: any) {
+  function push(_field: string, dbName: string, value: any) {
     fields.push(dbName);
     values.push(value);
   }
@@ -356,9 +356,6 @@ api.patch('/me/profile', requireAuth, async (req: any, res: any, next: any) => {
   }
 
   // Construct upsert
-  const cols = ['user_id', ...fields.map((_, i) => fields[i])];
-  const dbCols = ['user_id', ...fields.map((_, i) => ['gender', 'sexual_pref', 'bio', 'birthdate', 'fame_rating'][i])];
-  // Note: fields already aligned with db names via push
   const insertCols = ['user_id', ...fields];
   const insertParams = ['$1', ...fields.map((_, idx) => `$${idx + 2}`)];
   const updates = fields.map((c) => `${c} = EXCLUDED.${c}`).join(', ');
@@ -706,81 +703,37 @@ api.patch('/me/photos/reorder', requireAuth, async (req: any, res: any, next: an
   if (!parsed.success) return next(badRequest('VALIDATION_ERROR', 'Invalid request', parsed.error.flatten()));
   const items = parsed.data.order;
   // validate unique ids and positions
-  const ids = items.map((i) => i.id);
-  const positions = items.map((i) => i.position);
+  const ids = items.map((i) => Number(i.id));
+  const positions = items.map((i) => Number(i.position));
   if (new Set(ids).size !== ids.length) return next(badRequest('DUPLICATE_IDS', 'Duplicate ids'));
   if (new Set(positions).size !== positions.length) return next(badRequest('DUPLICATE_POSITIONS', 'Duplicate positions'));
 
   try {
-    const ids = items.map((it) => Number(it.id));
-    // ensure all ids belong to user and are gallery
-    const { rows } = await query<{ id: number }>(
-      `SELECT id FROM photos WHERE user_id = $1 AND kind = 'gallery' AND id = ANY($2::int[])`,
-      [userId, ids],
-    );
-    if (rows.length !== ids.length) return next(badRequest('INVALID_IDS', 'Some ids are invalid'));
-
-    // Compute current positions and choose a free tmp position within 1..5
-    const { rows: curRows } = await query<{ id: number; position: number }>(
-      `SELECT id, position FROM photos WHERE user_id = $1 AND kind = 'gallery'`,
+    // fetch current gallery set
+    const { rows: current } = await query<{ id: number }>(
+      `SELECT id FROM photos WHERE user_id = $1 AND kind = 'gallery' ORDER BY position ASC`,
       [userId],
     );
-    const used = new Set(curRows.map((r) => Number(r.position)));
-    let tmpPos: number | null = null;
-    for (let p = 1; p <= 5; p++) { if (!used.has(p)) { tmpPos = p; break; } }
-    if (tmpPos === null) return next(conflict('REORDER_NOT_POSSIBLE', 'Cannot reorder when gallery has 5 items; delete one first'));
+    if (current.length === 0) return res.json({ gallery: [] });
+    // require full overwrite
+    const curIds = current.map((r) => r.id);
+    const setEq = curIds.length === ids.length && curIds.every((id) => ids.includes(id));
+    if (!setEq) return next(badRequest('REORDER_REQUIRES_FULL_SET', 'Provide all gallery ids to reorder'));
+    // positions must be 1..N
+    const n = current.length;
+    const expected = new Set(Array.from({ length: n }, (_, i) => i + 1));
+    if (!positions.every((p) => expected.has(p))) return next(badRequest('INVALID_POSITIONS', 'Positions must be 1..N'));
 
-    // Build maps
-    const idToCur = new Map<number, number>();
-    const posToId = new Map<number, number>();
-    for (const r of curRows) { idToCur.set(Number(r.id), Number(r.position)); posToId.set(Number(r.position), Number(r.id)); }
-    const idToTarget = new Map<number, number>();
-    for (const it of items) idToTarget.set(Number(it.id), Number(it.position));
+    // Perform single CASE update; with deferrable unique this works even when full
+    const params: any[] = [userId, ...ids, ...positions, ids];
+    const whenClauses = items
+      .map((_, idx) => `WHEN id = $${2 + idx} THEN $${2 + n + idx}`)
+      .join(' ');
+    const sql = `UPDATE photos
+                 SET position = CASE ${whenClauses} ELSE position END
+                 WHERE user_id = $1 AND kind = 'gallery' AND id = ANY($${2 * n + 2}::int[])`;
+    await query(sql, params);
 
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      // helper to move a specific photo id to a free position
-      async function move(id: number, newPos: number) {
-        await client.query(`UPDATE photos SET position = $1 WHERE id = $2 AND user_id = $3 AND kind = 'gallery'`, [
-          newPos,
-          id,
-          userId,
-        ]);
-        const oldPos = idToCur.get(id)!;
-        posToId.delete(oldPos);
-        posToId.set(newPos, id);
-        idToCur.set(id, newPos);
-      }
-
-      // For each item, move it into its target by freeing the target via tmpPos if needed
-      for (const it of items) {
-        const id = Number(it.id);
-        const target = Number(it.position);
-        let cur = idToCur.get(id);
-        if (cur === undefined) continue; // should not happen
-        while (cur !== target) {
-          const occupant = posToId.get(target);
-          if (occupant && occupant !== id) {
-            // move occupant to tmpPos (which is free)
-            await move(occupant, tmpPos);
-            // now target is free
-          }
-          await move(id, target);
-          // the position we moved from becomes the new tmpPos
-          tmpPos = cur!;
-          cur = target;
-        }
-      }
-      await client.query('COMMIT');
-    } catch (e) {
-      await client.query('ROLLBACK');
-      throw e;
-    } finally {
-      client.release();
-    }
-
-    // return updated list
     const { rows: list } = await query<any>(
       `SELECT id, kind, position, storage_key, mime_type, width, height, size_bytes
        FROM photos WHERE user_id = $1 AND kind = 'gallery' ORDER BY position ASC`,
