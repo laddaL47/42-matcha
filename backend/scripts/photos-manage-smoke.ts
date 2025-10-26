@@ -1,9 +1,8 @@
 /*
- Photos manage smoke test:
+ Photos manage smoke test (reorder disabled):
  - register -> get CSRF
  - upload avatar + 3 gallery photos
  - delete one gallery photo -> positions compacted
- - reorder remaining gallery photos
  - delete avatar -> avatar becomes null
 */
 
@@ -64,14 +63,7 @@ async function del(path: string, cookies: Record<string, string>, csrf: string) 
   return { status: res.status, body: await json(res) };
 }
 
-async function patch(path: string, cookies: Record<string, string>, csrf: string, payload: any) {
-  const res = await fetch(`${BASE}${path}`, {
-    method: 'PATCH',
-    headers: { Cookie: cookieHeader(cookies), 'X-CSRF-Token': csrf, 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  return { status: res.status, body: await json(res) };
-}
+// reorder is disabled; no PATCH helper needed
 
 function rand() { return Math.random().toString(36).slice(2, 10); }
 
@@ -120,7 +112,7 @@ async function main() {
   const positions = body.gallery.map((p: any) => p.position);
   if (positions[0] !== 1 || positions[1] !== 2) throw new Error('positions not compacted');
 
-  // reorder: (WIP) 並び替えはDB制約の都合で後続作業。ここでは削除による position 詰めのみを検証。
+  // reorder disabled: skip any reorder checks
 
   // delete avatar
   const avDel = await del(`/api/me/photos/${body.avatar.id}`, cookies, csrf).catch(() => ({ status: 204 }));
