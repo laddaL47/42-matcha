@@ -1,10 +1,10 @@
 import { createBrowserRouter } from "react-router-dom";
 import Layout from "../components/layout/Layout";
-import App from "../pages/App";
 import AuthPage from "../pages/Authn";
 import ChatList from "../pages/ChatList";
 import ChatRoom from "../pages/ChatRoom";
 import Dashboard from "../pages/Dashboard";
+import App from "../pages/Landing";
 import Notifications from "../pages/Notifications";
 import Onboarding from "../pages/Onboarding";
 import ProfileEdit from "../pages/ProfileEdit";
