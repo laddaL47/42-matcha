@@ -2,7 +2,7 @@ import { createBrowserRouter } from "react-router-dom";
 import Layout from "../components/layout/Layout";
 import App from "../pages/App";
 import AuthPage from "../pages/auth/AuthPage";
-import ChatMain from "../pages/ChatList";
+import ChatList from "../pages/ChatList";
 import ChatRoom from "../pages/ChatRoom";
 import Dashboard from "../pages/Dashboard";
 import Notifications from "../pages/Notifications";
@@ -46,7 +46,7 @@ const router = createBrowserRouter([
       },
       {
         path: "/chat",
-        element: <ChatMain />,
+        element: <ChatList />,
       },
       {
         path: "/chat/:connectionId",
