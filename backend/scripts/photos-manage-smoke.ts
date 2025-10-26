@@ -120,17 +120,16 @@ async function main() {
   const positions = body.gallery.map((p: any) => p.position);
   if (positions[0] !== 1 || positions[1] !== 2) throw new Error('positions not compacted');
 
-  // reorder: full overwrite mapping (要求: 現在の全 gallery id を 1..N に割り当て)
-  const gNow = (await getWithCookies('/api/me/photos', cookies)).body as any;
-  if (gNow.gallery.length !== 2) throw new Error('expected 2 gallery before reorder');
+  // reorder: full overwrite mapping（直前の一覧 body.gallery をそのまま使用）
+  if (body.gallery.length !== 2) throw new Error('expected 2 gallery before reorder');
   const full = [
-    { id: gNow.gallery[0].id, position: 2 },
-    { id: gNow.gallery[1].id, position: 1 },
+    { id: body.gallery[0].id, position: 2 },
+    { id: body.gallery[1].id, position: 1 },
   ];
   const o = await patch('/api/me/photos/reorder', cookies, csrf, { order: full });
   if (o.status !== 200) throw new Error(`reorder failed: ${o.status} ${JSON.stringify(o.body)}`);
   const reordered = o.body.gallery as any[];
-  if (reordered.length !== 2 || reordered[0].position !== 1 || reordered[1].position !== 2 || reordered[0].id === gNow.gallery[0].id) {
+  if (reordered.length !== 2 || reordered[0].position !== 1 || reordered[1].position !== 2 || reordered[0].id === body.gallery[0].id) {
     throw new Error('reorder did not apply');
   }
 
