@@ -41,18 +41,35 @@ const Header = () => {
         {!isMobile && (
           <Group>
             {/* 通知 */}
-            <ActionIcon
-              component={Link}
-              to="/notifications"
-              variant="subtle"
-              size="lg"
-              color="gray"
-            >
-              <Badge size="sm" color="red" variant="filled">
+            <div style={{ position: "relative" }}>
+              <ActionIcon
+                component={Link}
+                to="/notifications"
+                variant="subtle"
+                size="lg"
+                color="gray"
+              >
+                <IconBell size={20} />
+              </ActionIcon>
+              <Badge
+                size="sm"
+                color="red"
+                variant="filled"
+                style={{
+                  position: "absolute",
+                  top: -5,
+                  right: -5,
+                  minWidth: 18,
+                  height: 18,
+                  fontSize: 10,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
                 3
               </Badge>
-              <IconBell size={20} />
-            </ActionIcon>
+            </div>
 
             {/* おすすめ */}
             <Button
