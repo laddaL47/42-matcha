@@ -54,6 +54,10 @@ jobs:
       - name: Install dependencies (root workspaces)
         run: npm ci
 
+      - name: Install dependencies (backend workspace)
+        working-directory: backend
+        run: npm ci
+
       - name: Build backend
         run: npm run build --workspace=backend
 
