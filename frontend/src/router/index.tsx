@@ -3,7 +3,6 @@ import Layout from "../components/layout/Layout";
 import AuthPage from "../pages/Authn";
 import ChatList from "../pages/ChatList";
 import ChatRoom from "../pages/ChatRoom";
-import Dashboard from "../pages/Dashboard";
 import App from "../pages/Landing";
 import Notifications from "../pages/Notifications";
 import Onboarding from "../pages/Onboarding";
@@ -28,10 +27,6 @@ const router = createBrowserRouter([
   {
     element: <Layout />,
     children: [
-      {
-        path: "/dashboard",
-        element: <Dashboard />,
-      },
       {
         path: "/suggestions",
         element: <Suggestions />,
