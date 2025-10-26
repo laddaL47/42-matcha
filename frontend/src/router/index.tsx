@@ -6,7 +6,7 @@ import ChatList from "../pages/ChatList";
 import ChatRoom from "../pages/ChatRoom";
 import Dashboard from "../pages/Dashboard";
 import Notifications from "../pages/Notifications";
-import Onboarding from "../pages/onboarding/Onboarding";
+import Onboarding from "../pages/Onboarding";
 import ProfileEdit from "../pages/ProfileEdit";
 import Settings from "../pages/Settings";
 import Suggestions from "../pages/Suggestions";
