@@ -93,7 +93,29 @@ curl -i -b "$CJ" -H "X-CSRF-Token: $csrf" -X POST http://localhost:3000/api/auth
 # -> HTTP/1.1 204 No Content
 ```
 
-## 7) メール検証（MailHog）
+## 7) プロフィール CRUD（/api/me/profile, /api/users/:username）
+
+ログイン済みユーザーのプロフィールを取得・更新できます。更新（PATCH）は CSRF ヘッダが必要です。
+
+例: プロフィール更新 → 取得 → 公開プロフィール参照
+
+```bash
+# CSRF を取得（register/login 後に）
+csrf=$(curl -sS -D - -o /dev/null -b "$CJ" http://localhost:3000/api/health | awk '/^x-csrf-token:/ {print $2}' | tr -d '\r')
+
+# 更新（PATCH）
+curl -sS -b "$CJ" -H 'Content-Type: application/json' -H "X-CSRF-Token: $csrf" \
+  -X PATCH http://localhost:3000/api/me/profile \
+  -d '{"bio":"Hello","gender":"other","sexualPref":"straight","birthdate":"1999-12-31","fameRating":10}' | jq .
+
+# 自分のプロフィールを取得（displayName を含む）
+curl -sS -b "$CJ" http://localhost:3000/api/me/profile | jq .
+
+# 公開プロフィール（username に置換、displayName を含む）
+curl -sS http://localhost:3000/api/users/YOUR_USERNAME | jq .
+```
+
+## 8) メール検証（MailHog）
 register 成功時、検証メールが MailHog に届きます。
 
 - UI で確認する場合: http://localhost:8025 を開き、最新の「Verify your email」を開いて検証リンクをクリックします。
@@ -113,7 +135,7 @@ curl -sS -H 'Accept: application/json' "http://localhost:3000/api/auth/verify-em
 ```json
 { "ok": true }
 ```
-## 8) パスワードリセット（forgot → reset → login）
+## 9) パスワードリセット（forgot → reset → login）
 
 - リセットリンクを要求（登録済みの email か username を指定）
 ```bash
@@ -122,7 +144,7 @@ curl -sS -H 'Content-Type: application/json' -H 'Accept: application/json' \
   http://localhost:3000/api/auth/forgot-password | jq .
 ```
 
-## 9) オプション: 認証 E2E スクリプト
+## 10) オプション: 認証 E2E スクリプト
 One-shot end-to-end test that runs: register → verify (MailHog) → forgot → reset → login.
 
 ```bash
@@ -136,7 +158,7 @@ npx tsx scripts/auth-e2e.ts
 ```
 AUTH E2E OK
 ```
-## 10) Socket.IO 認証（JWT/Cookie によるハンドシェイク）
+## 11) Socket.IO 認証（JWT/Cookie によるハンドシェイク）
 
 バックエンドは WS ハンドシェイク時に Cookie の `access_token` を検証します。未認証の接続は拒否され、クライアントは `connect_error: Unauthorized` を受け取ります。
 
@@ -159,7 +181,7 @@ WS AUTH TEST OK
 
 ブラウザから接続する場合（開発時）は、まず HTTP 側でログインして Cookie を取得し、`io("http://localhost:3000", { path: '/ws', withCredentials: true })` で接続してください（Vite プロキシで /ws → 3000 に中継されます）。
 
-## 11) オプション: WebSocket スモークテスト
+## 12) オプション: WebSocket スモークテスト
 
 hello と ping/pong の往復を確認します。
 
