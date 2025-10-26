@@ -709,24 +709,37 @@ api.patch('/me/photos/reorder', requireAuth, async (req: any, res: any, next: an
   if (new Set(positions).size !== positions.length) return next(badRequest('DUPLICATE_POSITIONS', 'Duplicate positions'));
 
   try {
-    // fetch current gallery set
-    const { rows: current } = await query<{ id: number }>(
-      `SELECT id FROM photos WHERE user_id = $1 AND kind = 'gallery' ORDER BY position ASC`,
+    // fetch current gallery set (id, current position)
+    const { rows: current } = await query<{ id: number; position: number }>(
+      `SELECT id, position FROM photos WHERE user_id = $1 AND kind = 'gallery' ORDER BY position ASC`,
       [userId],
     );
     if (current.length === 0) return res.json({ gallery: [] });
-    // require full overwrite
+
     const curIds = current.map((r) => r.id);
-    const setEq = curIds.length === ids.length && curIds.every((id) => ids.includes(id));
-    if (!setEq) return next(badRequest('REORDER_REQUIRES_FULL_SET', 'Provide all gallery ids to reorder'));
-    // positions must be 1..N
     const n = current.length;
     const expected = new Set(Array.from({ length: n }, (_, i) => i + 1));
-    if (!positions.every((p) => expected.has(p))) return next(badRequest('INVALID_POSITIONS', 'Positions must be 1..N'));
 
-    // Perform single CASE update; with deferrable unique this works even when full
-    const params: any[] = [userId, ...ids, ...positions, ids];
-    const whenClauses = items
+    // Validate provided ids are subset of current ids
+    if (!ids.every((id) => curIds.includes(id))) {
+      return next(badRequest('INVALID_IDS', 'Some ids are invalid'));
+    }
+
+    // Build final position plan starting from current positions (subset overwrite)
+    const finalPosById = new Map<number, number>();
+    for (const r of current) finalPosById.set(r.id, r.position);
+    for (const it of items) finalPosById.set(Number(it.id), Number(it.position));
+
+    // Validate final positions are a permutation of 1..N
+    const finalPositions = curIds.map((id) => finalPosById.get(id)!);
+    const finalSet = new Set(finalPositions);
+    if (finalSet.size !== n || !finalPositions.every((p) => expected.has(p))) {
+      return next(badRequest('INVALID_POSITIONS', 'Positions must be a 1..N permutation'));
+    }
+
+    // Perform single CASE update for all current ids using DEFERRABLE UNIQUE
+    const params: any[] = [userId, ...curIds, ...finalPositions, curIds];
+    const whenClauses = curIds
       .map((_, idx) => `WHEN id = $${2 + idx} THEN $${2 + n + idx}`)
       .join(' ');
     const sql = `UPDATE photos
