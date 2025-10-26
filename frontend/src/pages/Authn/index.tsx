@@ -55,7 +55,13 @@ const AuthPage = () => {
     <Container size="sm" py="xl">
       <Stack gap="xl">
         <div style={{ textAlign: "center" }}>
-          <Title order={1} mb="sm">
+          <Title
+            order={1}
+            c="green"
+            mb="sm"
+            style={{ cursor: "pointer" }}
+            onClick={() => navigate("/")}
+          >
             🍵 Matcha
           </Title>
           <Text c="dimmed" size="lg">
