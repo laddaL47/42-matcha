@@ -191,7 +191,7 @@ WS AUTH TEST OK
 - POST /api/me/avatar: multipart/form-data のファイル（フィールド名 file）を受け取り、プロフィール画像に設定。前の avatar は置き換え。
 - POST /api/me/photos: file を受け取り、gallery に追加（position 1..5 の空きに自動配置）。
 - DELETE /api/me/photos/:id: 指定した写真を削除（avatar も削除可）。gallery の場合は position を 1..n に詰め直し。
-- PATCH /api/me/photos/reorder: ギャラリーの並び替え。ボディ例: `{ "order": [{"id": 12, "position": 2}, {"id": 9, "position": 1}] }`
+（注）並び替えは現在サポートされていません。`PATCH /api/me/photos/reorder` は 410 Gone を返します。
 
 対応フォーマット: image/jpeg, image/png, image/webp（<= 10MB）
 
@@ -216,10 +216,10 @@ curl -sS -b "$CJ" http://localhost:3000/api/me/photos | jq .
 # ある gallery を削除（id を置き換え）
 curl -i -b "$CJ" -H "X-CSRF-Token: $csrf" -X DELETE http://localhost:3000/api/me/photos/PHOTO_ID
 
-# 並び替え（2つの id を入れ替え）
-curl -sS -b "$CJ" -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' \
-  -X PATCH http://localhost:3000/api/me/photos/reorder \
-  -d '{"order":[{"id":123,"position":2},{"id":456,"position":1}]}' | jq .
+# 並び替えは無効（410 Gone）
+# curl -i -b "$CJ" -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' \
+#   -X PATCH http://localhost:3000/api/me/photos/reorder \
+#   -d '{"order":[{"id":123,"position":2},{"id":456,"position":1}]}'
 ```
 
 レスポンスの各 photo には `url` と `thumbUrl` が含まれます。静的パス `/uploads/...` で配信されます。
