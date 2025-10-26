@@ -1,0 +1,102 @@
+name: CI backend
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/ci-backend.yml"
+
+jobs:
+  backend:
+    name: Backend build and smoke tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: matcha
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d matcha"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      mailhog:
+        image: mailhog/mailhog:v1.0.1
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    env:
+      # Backend configuration
+      PORT: 3000
+      NODE_ENV: test
+      CORS_ORIGIN: http://localhost:5173
+      JWT_SECRET: ci_secret
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/matcha
+      SMTP_HOST: localhost
+      SMTP_PORT: 1025
+      SMTP_SECURE: "false"
+      SMTP_FROM: "Matcha CI <no-reply@matcha.local>"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: "npm"
+
+      - name: Install dependencies (root workspaces)
+        run: npm ci
+
+      - name: Install dependencies (backend workspace)
+        working-directory: backend
+        run: npm ci
+
+      - name: Build backend
+        run: npm run build --workspace=backend
+
+      - name: Run DB migrations
+        run: npm run db:migrate --workspace=backend
+
+      - name: Start backend server
+        working-directory: backend
+        run: |
+          mkdir -p uploads
+          nohup npm start > ../server.log 2>&1 &
+
+      - name: Wait for server to be healthy
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://localhost:3000/api/health > /dev/null; then
+              echo "Server is up"; exit 0; fi
+            sleep 1
+          done
+          echo "Server failed to start in time"; tail -n +1 server.log || true; exit 1
+
+      - name: Run smoke - CSRF
+        run: npm exec --workspace=backend tsx scripts/csrf-smoke.ts
+
+      - name: Run smoke - WS auth
+        run: npm exec --workspace=backend tsx scripts/ws-auth-test.ts
+
+      - name: Run smoke - Profile CRUD
+        run: npm exec --workspace=backend tsx scripts/profile-smoke.ts
+
+      - name: Run smoke - Photos upload
+        run: npm exec --workspace=backend tsx scripts/photos-smoke.ts
+
+      - name: Upload server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-log
+          path: server.log
