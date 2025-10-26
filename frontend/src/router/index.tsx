@@ -1,7 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 import Layout from "../components/layout/Layout";
 import App from "../pages/App";
-import AuthPage from "../pages/auth/AuthPage";
+import AuthPage from "../pages/Authn";
 import ChatList from "../pages/ChatList";
 import ChatRoom from "../pages/ChatRoom";
 import Dashboard from "../pages/Dashboard";
