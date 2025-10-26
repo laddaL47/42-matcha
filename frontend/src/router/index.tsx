@@ -2,7 +2,7 @@ import { createBrowserRouter } from "react-router-dom";
 import Layout from "../components/layout/Layout";
 import App from "../pages/App";
 import AuthPage from "../pages/auth/AuthPage";
-import ChatMain from "../pages/ChatMain";
+import ChatMain from "../pages/ChatList";
 import ChatRoom from "../pages/ChatRoom";
 import Dashboard from "../pages/Dashboard";
 import Notifications from "../pages/Notifications";
