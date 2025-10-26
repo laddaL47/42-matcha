@@ -5,3 +5,4 @@ uploads/
 backend/dist/
 node_modules/
 tmp/
+logs/

@@ -183,13 +183,15 @@ WS AUTH TEST OK
 
 ## 12) オプション: WebSocket スモークテスト
 
-## 13) 写真アップロード（avatar + 最大 5 枚の gallery）
+## 13) 写真アップロード/管理（avatar + 最大 5 枚の gallery）
 
 エンドポイント（すべて認証 + CSRF 必須）
 
 - GET /api/me/photos: 自分の avatar と gallery 一覧を返却。
 - POST /api/me/avatar: multipart/form-data のファイル（フィールド名 file）を受け取り、プロフィール画像に設定。前の avatar は置き換え。
 - POST /api/me/photos: file を受け取り、gallery に追加（position 1..5 の空きに自動配置）。
+- DELETE /api/me/photos/:id: 指定した写真を削除（avatar も削除可）。gallery の場合は position を 1..n に詰め直し。
+- PATCH /api/me/photos/reorder: ギャラリーの並び替え。ボディ例: `{ "order": [{"id": 12, "position": 2}, {"id": 9, "position": 1}] }`
 
 対応フォーマット: image/jpeg, image/png, image/webp（<= 10MB）
 
@@ -210,9 +212,19 @@ curl -sS -b "$CJ" -H "X-CSRF-Token: $csrf" \
 
 # 一覧
 curl -sS -b "$CJ" http://localhost:3000/api/me/photos | jq .
+
+# ある gallery を削除（id を置き換え）
+curl -i -b "$CJ" -H "X-CSRF-Token: $csrf" -X DELETE http://localhost:3000/api/me/photos/PHOTO_ID
+
+# 並び替え（2つの id を入れ替え）
+curl -sS -b "$CJ" -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' \
+  -X PATCH http://localhost:3000/api/me/photos/reorder \
+  -d '{"order":[{"id":123,"position":2},{"id":456,"position":1}]}' | jq .
 ```
 
 レスポンスの各 photo には `url` と `thumbUrl` が含まれます。静的パス `/uploads/...` で配信されます。
+
+公開プロフィール（`GET /api/users/:username`）および `GET /api/auth/me` には、`avatar` フィールド（`{ url, thumbUrl } | null`）が含まれます。
 
 hello と ping/pong の往復を確認します。
 

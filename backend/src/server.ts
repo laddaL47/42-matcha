@@ -10,7 +10,7 @@ import { Server as SocketIOServer } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-import { query } from './db/pool.js';
+import { query, pool } from './db/pool.js';
 import { sendMail } from './email/mailer.js';
 import crypto from 'crypto';
 import { AppError, badRequest, conflict, forbidden, internal, unauthorized, notFound } from './errors.js';
@@ -244,7 +244,15 @@ api.get('/auth/me', requireAuth, async (req: any, res: any) => {
   );
   const user = rows[0];
   if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ user });
+  const { rows: arows } = await query<{ storage_key: string }>(
+    `SELECT storage_key FROM photos WHERE user_id = $1 AND kind = 'avatar' LIMIT 1`,
+    [userId],
+  );
+  const akey = arows[0]?.storage_key;
+  const avatar = akey
+    ? { url: publicUrl(akey), thumbUrl: publicUrl(akey.replace(/\.(\w+)$/, '_thumb.$1')) }
+    : null;
+  res.json({ user: { ...user }, avatar });
 });
 
 // ---- Profile CRUD ----
@@ -402,8 +410,10 @@ api.get('/users/:username', async (req: any, res: any, next: any) => {
     bio: string;
     birthdate: string | null;
     fame_rating: number;
+    avatar_key: string | null;
   }>(
-    `SELECT u.id, u.username, p.display_name, p.gender, p.sexual_pref, p.bio, p.birthdate, p.fame_rating
+    `SELECT u.id, u.username, p.display_name, p.gender, p.sexual_pref, p.bio, p.birthdate, p.fame_rating,
+            (SELECT storage_key FROM photos WHERE user_id = u.id AND kind = 'avatar' LIMIT 1) AS avatar_key
      FROM users u
      LEFT JOIN profiles p ON p.user_id = u.id
      WHERE u.username = $1
@@ -422,7 +432,10 @@ api.get('/users/:username', async (req: any, res: any, next: any) => {
     birthdate: row.birthdate,
     fameRating: row.fame_rating ?? 0,
   };
-  res.json({ profile });
+  const avatar = row.avatar_key
+    ? { url: publicUrl(row.avatar_key), thumbUrl: publicUrl(row.avatar_key.replace(/\.(\w+)$/, '_thumb.$1')) }
+    : null;
+  res.json({ profile, avatar });
 });
 
 // Email verification
@@ -627,6 +640,158 @@ api.post('/me/photos', requireAuth, upload.single('file'), async (req: any, res:
     );
     const id = rows[0].id;
     res.status(201).json({ photo: { id, kind: 'gallery', position, url: publicUrl(mainKey), thumbUrl: publicUrl(thumbKey) } });
+  } catch (e: any) {
+    return next(internal('Internal Server Error', String(e?.message || e)));
+  }
+});
+
+// ---- Photos: DELETE by id ----
+api.delete('/me/photos/:id', requireAuth, async (req: any, res: any, next: any) => {
+  const userId = req.user.id;
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return next(badRequest('VALIDATION_ERROR', 'Invalid id'));
+  try {
+    const { rows } = await query<{ id: number; kind: string; position: number | null; storage_key: string }>(
+      `SELECT id, kind, position, storage_key FROM photos WHERE id = $1 AND user_id = $2 LIMIT 1`,
+      [id, userId],
+    );
+    const row = rows[0];
+    if (!row) return next(notFound('PHOTO_NOT_FOUND', 'Photo not found'));
+
+    // delete files
+    const mainPath = path.join(UPLOADS_ROOT, row.storage_key);
+    const thumbPath = mainPath.replace(/\.(\w+)$/, '_thumb.$1');
+    try { await fsp.unlink(mainPath); } catch {}
+    try { await fsp.unlink(thumbPath); } catch {}
+
+    await query(`DELETE FROM photos WHERE id = $1 AND user_id = $2`, [id, userId]);
+
+    if (row.kind === 'gallery') {
+      // compact positions to 1..n without gaps
+      const { rows: rest } = await query<{ id: number; position: number }>(
+        `SELECT id, position FROM photos WHERE user_id = $1 AND kind = 'gallery' ORDER BY position ASC`,
+        [userId],
+      );
+      let expected = 1;
+      for (const r of rest) {
+        if (r.position !== expected) {
+          await query(`UPDATE photos SET position = $1 WHERE id = $2`, [expected, r.id]);
+        }
+        expected++;
+      }
+    }
+
+    res.status(204).send();
+  } catch (e: any) {
+    return next(internal('Internal Server Error', String(e?.message || e)));
+  }
+});
+
+// ---- Photos: PATCH reorder ----
+const ReorderDto = z.object({
+  order: z
+    .array(
+      z.object({
+        id: z.coerce.number().int().positive(),
+        position: z.coerce.number().int().min(1).max(5),
+      }),
+    )
+    .min(1)
+    .max(5),
+});
+
+api.patch('/me/photos/reorder', requireAuth, async (req: any, res: any, next: any) => {
+  const userId = req.user.id;
+  const parsed = ReorderDto.safeParse(req.body);
+  if (!parsed.success) return next(badRequest('VALIDATION_ERROR', 'Invalid request', parsed.error.flatten()));
+  const items = parsed.data.order;
+  // validate unique ids and positions
+  const ids = items.map((i) => i.id);
+  const positions = items.map((i) => i.position);
+  if (new Set(ids).size !== ids.length) return next(badRequest('DUPLICATE_IDS', 'Duplicate ids'));
+  if (new Set(positions).size !== positions.length) return next(badRequest('DUPLICATE_POSITIONS', 'Duplicate positions'));
+
+  try {
+    const ids = items.map((it) => Number(it.id));
+    // ensure all ids belong to user and are gallery
+    const { rows } = await query<{ id: number }>(
+      `SELECT id FROM photos WHERE user_id = $1 AND kind = 'gallery' AND id = ANY($2::int[])`,
+      [userId, ids],
+    );
+    if (rows.length !== ids.length) return next(badRequest('INVALID_IDS', 'Some ids are invalid'));
+
+    // Compute current positions and choose a free tmp position within 1..5
+    const { rows: curRows } = await query<{ id: number; position: number }>(
+      `SELECT id, position FROM photos WHERE user_id = $1 AND kind = 'gallery'`,
+      [userId],
+    );
+    const used = new Set(curRows.map((r) => Number(r.position)));
+    let tmpPos: number | null = null;
+    for (let p = 1; p <= 5; p++) { if (!used.has(p)) { tmpPos = p; break; } }
+    if (tmpPos === null) return next(conflict('REORDER_NOT_POSSIBLE', 'Cannot reorder when gallery has 5 items; delete one first'));
+
+    // Build maps
+    const idToCur = new Map<number, number>();
+    const posToId = new Map<number, number>();
+    for (const r of curRows) { idToCur.set(Number(r.id), Number(r.position)); posToId.set(Number(r.position), Number(r.id)); }
+    const idToTarget = new Map<number, number>();
+    for (const it of items) idToTarget.set(Number(it.id), Number(it.position));
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // helper to move a specific photo id to a free position
+      async function move(id: number, newPos: number) {
+        await client.query(`UPDATE photos SET position = $1 WHERE id = $2 AND user_id = $3 AND kind = 'gallery'`, [
+          newPos,
+          id,
+          userId,
+        ]);
+        const oldPos = idToCur.get(id)!;
+        posToId.delete(oldPos);
+        posToId.set(newPos, id);
+        idToCur.set(id, newPos);
+      }
+
+      // For each item, move it into its target by freeing the target via tmpPos if needed
+      for (const it of items) {
+        const id = Number(it.id);
+        const target = Number(it.position);
+        let cur = idToCur.get(id);
+        if (cur === undefined) continue; // should not happen
+        while (cur !== target) {
+          const occupant = posToId.get(target);
+          if (occupant && occupant !== id) {
+            // move occupant to tmpPos (which is free)
+            await move(occupant, tmpPos);
+            // now target is free
+          }
+          await move(id, target);
+          // the position we moved from becomes the new tmpPos
+          tmpPos = cur!;
+          cur = target;
+        }
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+
+    // return updated list
+    const { rows: list } = await query<any>(
+      `SELECT id, kind, position, storage_key, mime_type, width, height, size_bytes
+       FROM photos WHERE user_id = $1 AND kind = 'gallery' ORDER BY position ASC`,
+      [userId],
+    );
+    const map = (r: any) => ({
+      ...r,
+      url: publicUrl(r.storage_key),
+      thumbUrl: publicUrl(r.storage_key.replace(/\.(\w+)$/, '_thumb.$1')),
+    });
+    res.json({ gallery: list.map(map) });
   } catch (e: any) {
     return next(internal('Internal Server Error', String(e?.message || e)));
   }
