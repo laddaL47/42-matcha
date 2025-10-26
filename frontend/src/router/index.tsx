@@ -9,7 +9,7 @@ import Notifications from "../pages/Notifications";
 import Onboarding from "../pages/onboarding/Onboarding";
 import ProfileEdit from "../pages/ProfileEdit";
 import Settings from "../pages/Settings";
-import Suggestions from "../pages/suggestions/Suggestions";
+import Suggestions from "../pages/Suggestions";
 import UserProfile from "../pages/UserProfile";
 
 const router = createBrowserRouter([
