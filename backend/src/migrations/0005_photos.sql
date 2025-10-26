@@ -22,7 +22,7 @@ ALTER TABLE photos
 -- only one avatar per user
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_photos_avatar_per_user ON photos(user_id) WHERE kind = 'avatar';
 
--- gallery positions unique per user (1..5)
+-- gallery positions unique per user (1..5); note: total photos limit (including avatar) is enforced at API level
 CREATE UNIQUE INDEX IF NOT EXISTS uniq_photos_gallery_position_per_user ON photos(user_id, position) WHERE kind = 'gallery';
 
 -- updated_at trigger (reuse set_updated_at)

@@ -3,6 +3,9 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import http from 'http';
+import path from 'path';
+import fs from 'fs';
+import { promises as fsp } from 'fs';
 import { Server as SocketIOServer } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
@@ -11,6 +14,8 @@ import { query } from './db/pool.js';
 import { sendMail } from './email/mailer.js';
 import crypto from 'crypto';
 import { AppError, badRequest, conflict, forbidden, internal, unauthorized, notFound } from './errors.js';
+import multer from 'multer';
+import sharp from 'sharp';
 
 const app = express();
 
@@ -116,6 +121,13 @@ function requireCsrf(req: any, res: any, next: any) {
 // Attach CSRF middlewares
 app.use(ensureCsrfToken);
 app.use(requireCsrf);
+
+// ---- Static uploads ----
+const UPLOADS_ROOT = path.resolve(process.cwd(), 'uploads');
+if (!fs.existsSync(UPLOADS_ROOT)) {
+  fs.mkdirSync(UPLOADS_ROOT, { recursive: true });
+}
+app.use('/uploads', express.static(UPLOADS_ROOT, { maxAge: '7d', extensions: ['jpg', 'jpeg', 'png', 'webp'] }));
 
 // ---- Routes ----
 const api = express.Router();
@@ -483,6 +495,142 @@ api.post('/auth/reset-password', async (req: any, res: any, next: any) => {
 });
 
 app.use('/api', api);
+
+// ---- Photos: helpers ----
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+async function ensureUserDir(userId: number) {
+  const dir = path.join(UPLOADS_ROOT, 'u', String(userId));
+  await fsp.mkdir(dir, { recursive: true });
+  return dir;
+}
+
+function extFromMime(mime: string): string {
+  if (mime === 'image/jpeg') return 'jpg';
+  if (mime === 'image/png') return 'png';
+  if (mime === 'image/webp') return 'webp';
+  return 'jpg';
+}
+
+function publicUrl(storageKey: string) {
+  return `/uploads/${storageKey}`;
+}
+
+// ---- Photos: GET list ----
+api.get('/me/photos', requireAuth, async (req: any, res: any) => {
+  const userId = req.user.id;
+  const { rows } = await query<any>(
+    `SELECT id, kind, position, storage_key, mime_type, width, height, size_bytes
+     FROM photos WHERE user_id = $1 ORDER BY kind ASC, position ASC NULLS FIRST`,
+    [userId],
+  );
+  const avatar = rows.find((r: any) => r.kind === 'avatar') || null;
+  const gallery = rows.filter((r: any) => r.kind === 'gallery');
+  const map = (r: any) => ({ ...r, url: publicUrl(r.storage_key), thumbUrl: publicUrl(r.storage_key.replace(/\.(\w+)$/, '_thumb.$1')) });
+  res.json({
+    avatar: avatar ? map(avatar) : null,
+    gallery: gallery.map(map),
+  });
+});
+
+// ---- Photos: POST avatar ----
+api.post('/me/avatar', requireAuth, upload.single('file'), async (req: any, res: any, next: any) => {
+  const userId = req.user.id;
+  const file = req.file as Express.Multer.File | undefined;
+  if (!file) return next(badRequest('NO_FILE', 'No file uploaded'));
+  if (!ALLOWED_MIME.has(file.mimetype)) return next(badRequest('UNSUPPORTED_TYPE', 'Unsupported image type'));
+  try {
+    const dir = await ensureUserDir(userId);
+    const ext = extFromMime(file.mimetype);
+    const keyBase = `u/${userId}/a_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const mainKey = `${keyBase}.${ext}`;
+    const thumbKey = `${keyBase}_thumb.${ext}`;
+    const mainPath = path.join(UPLOADS_ROOT, mainKey);
+    const thumbPath = path.join(UPLOADS_ROOT, thumbKey);
+
+  const mainResized = await sharp(file.buffer).rotate().resize({ width: 1024, height: 1024, fit: 'inside' }).toBuffer();
+    await fsp.writeFile(mainPath, mainResized);
+    const meta = await sharp(mainResized).metadata();
+
+    const thumbResized = await sharp(file.buffer).rotate().resize({ width: 256, height: 256, fit: 'cover' }).toBuffer();
+    await fsp.writeFile(thumbPath, thumbResized);
+
+    // remove existing avatar rows/files
+    const { rows: oldRows } = await query<{ storage_key: string }>(`SELECT storage_key FROM photos WHERE user_id = $1 AND kind = 'avatar'`, [userId]);
+    if (oldRows.length === 0) {
+      // First avatar: enforce total <= 5 including avatar
+      const { rows: cntRows } = await query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM photos WHERE user_id = $1`, [userId]);
+      const total = Number(cntRows[0].count || '0');
+      if (total >= 5) return next(conflict('MAX_PHOTOS_REACHED', 'Maximum of 5 photos (including avatar)'));
+    }
+    for (const r of oldRows) {
+      const oldMain = path.join(UPLOADS_ROOT, r.storage_key);
+      const oldThumb = oldMain.replace(/\.(\w+)$/, '_thumb.$1');
+      try { await fsp.unlink(oldMain); } catch {}
+      try { await fsp.unlink(oldThumb); } catch {}
+    }
+    await query(`DELETE FROM photos WHERE user_id = $1 AND kind = 'avatar'`, [userId]);
+
+    const { rows } = await query<{ id: number }>(
+      `INSERT INTO photos(user_id, kind, position, storage_key, mime_type, width, height, size_bytes)
+       VALUES ($1, 'avatar', NULL, $2, $3, $4, $5, $6)
+       RETURNING id`,
+      [userId, mainKey, file.mimetype, meta.width || null, meta.height || null, mainResized.byteLength],
+    );
+    const id = rows[0].id;
+    res.status(201).json({ photo: { id, kind: 'avatar', url: publicUrl(mainKey), thumbUrl: publicUrl(thumbKey) } });
+  } catch (e: any) {
+    return next(internal('Internal Server Error', String(e?.message || e)));
+  }
+});
+
+// ---- Photos: POST gallery (max 5) ----
+api.post('/me/photos', requireAuth, upload.single('file'), async (req: any, res: any, next: any) => {
+  const userId = req.user.id;
+  const file = req.file as Express.Multer.File | undefined;
+  if (!file) return next(badRequest('NO_FILE', 'No file uploaded'));
+  if (!ALLOWED_MIME.has(file.mimetype)) return next(badRequest('UNSUPPORTED_TYPE', 'Unsupported image type'));
+  try {
+    const { rows: posRows } = await query<{ position: number }>(
+      `SELECT position FROM photos WHERE user_id = $1 AND kind = 'gallery' ORDER BY position ASC`,
+      [userId],
+    );
+    // Enforce total <= 5 including avatar
+    const { rows: cntRows } = await query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM photos WHERE user_id = $1`, [userId]);
+    const total = Number(cntRows[0].count || '0');
+    if (total >= 5) return next(conflict('MAX_PHOTOS_REACHED', 'Maximum of 5 photos (including avatar)'));
+    const used = new Set(posRows.map((r) => Number(r.position)));
+    let position: number | null = null;
+    for (let p = 1; p <= 5; p++) { if (!used.has(p)) { position = p; break; } }
+    if (!position) return next(conflict('GALLERY_FULL', 'Gallery is full'));
+
+    const dir = await ensureUserDir(userId);
+    const ext = extFromMime(file.mimetype);
+    const keyBase = `u/${userId}/g${position}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const mainKey = `${keyBase}.${ext}`;
+    const thumbKey = `${keyBase}_thumb.${ext}`;
+    const mainPath = path.join(UPLOADS_ROOT, mainKey);
+    const thumbPath = path.join(UPLOADS_ROOT, thumbKey);
+
+    const mainResized = await sharp(file.buffer).rotate().resize({ width: 1280, height: 1280, fit: 'inside' }).toBuffer();
+    await fsp.writeFile(mainPath, mainResized);
+    const meta = await sharp(mainResized).metadata();
+    const thumbResized = await sharp(file.buffer).rotate().resize({ width: 256, height: 256, fit: 'cover' }).toBuffer();
+    await fsp.writeFile(thumbPath, thumbResized);
+
+    const { rows } = await query<{ id: number }>(
+      `INSERT INTO photos(user_id, kind, position, storage_key, mime_type, width, height, size_bytes)
+       VALUES ($1, 'gallery', $2, $3, $4, $5, $6, $7)
+       RETURNING id`,
+      [userId, position, mainKey, file.mimetype, meta.width || null, meta.height || null, mainResized.byteLength],
+    );
+    const id = rows[0].id;
+    res.status(201).json({ photo: { id, kind: 'gallery', position, url: publicUrl(mainKey), thumbUrl: publicUrl(thumbKey) } });
+  } catch (e: any) {
+    return next(internal('Internal Server Error', String(e?.message || e)));
+  }
+});
 
 // ---- HTTP + WS ----
 const server = http.createServer(app);
